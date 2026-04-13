@@ -228,7 +228,7 @@ function AnalysisScreen({ ex, sessions, onBack }) {
   const isIsolation  = ex.exType === "isolation";
   const isCarries    = ex.exType === "carries";
   const isPlyometric = ex.exType === "plyometric";
-  const showPercentages = isCompound || isIsolation;
+  const showPercentages = !ex.exType || isCompound || isIsolation;
 
   const numericSets = [];
   sessions.forEach(s => {
@@ -486,7 +486,7 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
     return { ...s, _prev:raw, _prevIsSub:prevIsSub };
   });
 
-  const showAnalysisBtn = (ex.exType === "compound" || ex.exType === "isolation" || ex.exType === "carries" || ex.exType === "plyometric") && track.key === "reps";
+  const showAnalysisBtn = ((!ex.exType || ex.exType === "compound") || ex.exType === "isolation" || ex.exType === "carries" || ex.exType === "plyometric") && track.key === "reps";
 
   const updSet = (i, f, v) => {
     const n = sets.map((s,idx) => idx===i ? {...s,[f]:v} : s);
