@@ -378,7 +378,8 @@ function PerformanceScreen({ user, program, onBack }) {
     const exercises = program[dk].exercises || [];
     const sessions = allSessions[dk] || [];
     exercises.forEach(ex => {
-      if (ex.exType !== "compound") return;
+      const isCompound = ex.exType === "compound" || (!ex.exType && ex.trackingType === "reps");
+      if (!isCompound) return;
       let bestSet = null, best1RM = 0;
       sessions.forEach(s => {
         const e = s.entries?.[ex.id];
