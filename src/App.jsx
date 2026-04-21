@@ -1057,9 +1057,7 @@ export default function App() {
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
       <div style={{ width:"100%", maxWidth:340 }}>
         <div style={{ marginBottom:40 }}>
-          <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:10 }}>Phase 1</div>
-          <div style={{ fontSize:34, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em", lineHeight:1.05 }}>Athletic<br />Hypertrophy<br />Split</div>
-          <div style={{ fontSize:13, color:"#bbb", marginTop:10 }}>Upper · Lower · Upper · Lower + Solo</div>
+          <div style={{ fontSize:48, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em", lineHeight:1 }}>STACK</div>
         </div>
         <div style={{ fontSize:10, color:"#bbb", marginBottom:12, letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:700 }}>Who's logging?</div>
         {USERS.map(u => (
@@ -1089,6 +1087,10 @@ export default function App() {
             <div style={{ fontSize:19, fontWeight:900, color:"#0a0a0a" }}>{user}</div>
             <div style={{ fontSize:11, color:"#bbb" }}>Select today's workout</div>
           </div>
+        </div>
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:6 }}>Phase 1</div>
+          <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.03em", lineHeight:1.1 }}>Athletic<br />Hypertrophy Split</div>
         </div>
         {DAY_KEYS.map(dk => (
           <button key={dk} onClick={()=>{setActiveDay(dk);setScreen("workout");}} style={{ display:"block", width:"100%", marginBottom:10, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
