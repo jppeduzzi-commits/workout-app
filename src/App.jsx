@@ -1262,10 +1262,12 @@ export default function App() {
           setScreen("onboard");
         }
       } else {
-        signInAnonymously(auth);
+        signInAnonymously(auth).catch(() => setScreen("onboard"));
       }
     });
-    return () => unsub();
+    // Fallback: if auth hangs for 6 seconds, show onboard anyway
+    const timeout = setTimeout(() => setScreen(s => s === "loading" ? "onboard" : s), 6000);
+    return () => { unsub(); clearTimeout(timeout); };
   }, []);
 
   // Load program + settings whenever the active user changes
