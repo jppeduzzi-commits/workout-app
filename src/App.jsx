@@ -36,6 +36,7 @@ const fmtDate = str => {
 };
 const copy = x => JSON.parse(JSON.stringify(x));
 const uid = () => `ex_${Date.now()}_${Math.random().toString(36).slice(2,5)}`;
+const newSplitId = () => `sp_${Date.now()}_${Math.random().toString(36).slice(2,5)}`;
 const roundTo = (n, step) => Math.round(n / step) * step;
 
 // ── Calculation helpers ─────────────────────────────────────────────────────
@@ -203,14 +204,23 @@ async function fbSaveDraft(user, dayKey, draft) {
 async function fbClearDraft(user, dayKey) {
   try { await setDoc(doc(db, "drafts", `${user}_${dayKey}`), { draft: {} }); } catch(e) { console.error(e); }
 }
-async function fbLoadProgram(user, isNewUser = false) {
+function legacyToSplitsDoc(data) {
+  const program = data.program || data;
+  return {
+    activeSplitId: "default",
+    splits: [{ id: "default", name: "Athletic Hypertrophy Split", days: [...DAY_KEYS], program: copy(program) }]
+  };
+}
+async function fbLoadSplits(user, isNewUser = false) {
   try {
     const snap = await getDoc(doc(db, "programs", user));
-    return snap.exists() ? snap.data().program : (isNewUser ? {} : copy(DEFAULT_PROGRAM));
-  } catch { return isNewUser ? {} : copy(DEFAULT_PROGRAM); }
+    if (!snap.exists()) return isNewUser ? { activeSplitId: null, splits: [] } : legacyToSplitsDoc({ program: copy(DEFAULT_PROGRAM) });
+    const data = snap.data();
+    return Array.isArray(data.splits) ? data : legacyToSplitsDoc(data);
+  } catch { return isNewUser ? { activeSplitId: null, splits: [] } : legacyToSplitsDoc({ program: copy(DEFAULT_PROGRAM) }); }
 }
-async function fbSaveProgram(user, program) {
-  try { await setDoc(doc(db, "programs", user), { program }); } catch(e) { console.error(e); }
+async function fbSaveSplits(user, splitsDoc) {
+  try { await setDoc(doc(db, "programs", user), splitsDoc); } catch(e) { console.error(e); }
 }
 async function fbLoadSettings(user) {
   try {
@@ -806,7 +816,7 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
 
 // ── Workout Screen ──────────────────────────────────────────────────────────
 
-function WorkoutScreen({ user, readOnly, program, onBack, otherUser, onViewOther, initDay, showRIR }) {
+function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onViewOther, initDay, showRIR }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -816,7 +826,7 @@ function WorkoutScreen({ user, readOnly, program, onBack, otherUser, onViewOther
   const [autoSaved, setAutoSaved] = useState(false);
   const [analysisEx, setAnalysisEx] = useState(null);
   const autoSaveTimer = useRef(null);
-  const programDays = Object.keys(program);
+  const programDays = days?.length ? days : Object.keys(program);
   const curDay      = program[activeDay];
   const lastSession = sessions[sessions.length-1] || null;
 
@@ -1148,21 +1158,21 @@ function AddModal({ onAdd, onClose }) {
 
 // ── Editor Screen ───────────────────────────────────────────────────────────
 
-function EditorScreen({ programs, onSave, onBack, currentUser }) {
-  const [scope, setScope] = useState("both");
-  const initProg = copy(programs[currentUser] || {});
-  const firstDay = Object.keys(initProg)[0] || null;
-  const [activeDay, setActiveDay] = useState(firstDay);
-  const [prog, setProg] = useState(() => initProg);
+function EditorScreen({ split, onSave, onBack, currentUser }) {
+  const [scope, setScope] = useState("self");
+  const [editDays, setEditDays] = useState(() => [...(split?.days || [])]);
+  const [activeDay, setActiveDay] = useState(() => (split?.days || [])[0] || null);
+  const [prog, setProg] = useState(() => copy(split?.program || {}));
   const [showAdd, setShowAdd] = useState(false);
+  const [showAddDay, setShowAddDay] = useState(false);
+  const [newDayName, setNewDayName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dragId, setDragId] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
   const refs = useRef({});
-  const progDays = Object.keys(prog);
-  const curEditorDay = activeDay && prog[activeDay];
-  const exs    = curEditorDay?.exercises || [];
+  const curDay = activeDay && prog[activeDay];
+  const exs    = curDay?.exercises || [];
   const setExs = useCallback(n => setProg(p => ({...p, [activeDay]:{...p[activeDay], exercises:n}})), [activeDay]);
 
   useEffect(() => {
@@ -1187,11 +1197,27 @@ function EditorScreen({ programs, onSave, onBack, currentUser }) {
     const n=[...exs]; const[item]=n.splice(from,1); n.splice(overIdx,0,item); return n;
   })() : exs;
 
+  const handleAddDay = () => {
+    const name = newDayName.trim();
+    if (!name) return;
+    setEditDays(d => [...d, name]);
+    setProg(p => ({ ...p, [name]: { label: name, subtitle: "", exercises: [] } }));
+    setActiveDay(name);
+    setNewDayName(""); setShowAddDay(false);
+  };
+
+  const handleDeleteDay = (dk) => {
+    const remaining = editDays.filter(x => x !== dk);
+    setEditDays(remaining);
+    setProg(p => { const n = {...p}; delete n[dk]; return n; });
+    if (activeDay === dk) setActiveDay(remaining[0] || null);
+  };
+
   const doSave = async () => {
     setSaving(true);
-    const targets = scope==="both" ? USERS : [scope];
-    await Promise.all(targets.map(u => fbSaveProgram(u, prog)));
-    onSave(targets, prog);
+    const updatedSplit = { ...split, days: editDays, program: prog };
+    const targets = scope === "both" ? USERS : [currentUser];
+    await onSave(updatedSplit, targets);
     setSaving(false); setSaved(true);
     setTimeout(() => { setSaved(false); onBack(); }, 900);
   };
@@ -1202,52 +1228,204 @@ function EditorScreen({ programs, onSave, onBack, currentUser }) {
         <button onClick={onBack} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>←</button>
         <div>
           <div style={{ fontSize:17, fontWeight:900, color:"#0a0a0a" }}>Edit Program</div>
-          <div style={{ fontSize:11, color:"#bbb" }}>Hold ⠿ to drag · tap ✏️ to edit</div>
+          <div style={{ fontSize:11, color:"#bbb" }}>{split?.name} · Hold ⠿ to drag exercises</div>
         </div>
       </div>
 
       <div style={{ flex:1, overflowY:"auto", padding:"14px", paddingBottom:100 }}>
-        <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
-          <div style={{ fontSize:10, fontWeight:700, color:"#15803d", marginBottom:8, letterSpacing:"0.08em", textTransform:"uppercase" }}>Apply changes to</div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            {[{k:"both",l:"Both Josh & AJ"},{k:"Josh",l:"Josh only"},{k:"AJ",l:"AJ only"}].map(s => (
-              <button key={s.k} onClick={()=>setScope(s.k)} style={{ padding:"6px 12px", background:scope===s.k?"#15803d":"#fff", color:scope===s.k?"#fff":"#15803d", border:`1.5px solid ${scope===s.k?"#15803d":"#bbf7d0"}`, borderRadius:7, fontSize:12, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>{s.l}</button>
-            ))}
+        {USERS.includes(currentUser) && (
+          <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"#15803d", marginBottom:8, letterSpacing:"0.08em", textTransform:"uppercase" }}>Apply changes to</div>
+            <div style={{ display:"flex", gap:8 }}>
+              {[{k:"self",l:"Just me"},{k:"both",l:"Both Josh & AJ"}].map(s => (
+                <button key={s.k} onClick={()=>setScope(s.k)} style={{ padding:"6px 12px", background:scope===s.k?"#15803d":"#fff", color:scope===s.k?"#fff":"#15803d", border:`1.5px solid ${scope===s.k?"#15803d":"#bbf7d0"}`, borderRadius:7, fontSize:12, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>{s.l}</button>
+              ))}
+            </div>
           </div>
+        )}
+
+        {/* Day tabs with × delete */}
+        <div style={{ display:"flex", gap:6, overflowX:"auto", marginBottom:10, flexWrap:"nowrap", paddingBottom:4 }}>
+          {editDays.map(dk => (
+            <div key={dk} style={{ display:"flex", alignItems:"center", flexShrink:0 }}>
+              <button onClick={()=>setActiveDay(dk)} style={{ background:activeDay===dk?"#0a0a0a":"#f5f5f5", color:activeDay===dk?"#fff":"#888", border:`1.5px solid ${activeDay===dk?"#0a0a0a":"#e8e8e8"}`, borderTopLeftRadius:8, borderBottomLeftRadius:8, borderTopRightRadius:0, borderBottomRightRadius:0, padding:"5px 10px", fontSize:11, fontFamily:"inherit", fontWeight:activeDay===dk?700:500, cursor:"pointer", whiteSpace:"nowrap", borderRight:"none" }}>{dk}</button>
+              <button onClick={()=>handleDeleteDay(dk)} style={{ background:activeDay===dk?"#333":"#f5f5f5", color:activeDay===dk?"#aaa":"#ccc", border:`1.5px solid ${activeDay===dk?"#0a0a0a":"#e8e8e8"}`, borderTopRightRadius:8, borderBottomRightRadius:8, borderTopLeftRadius:0, borderBottomLeftRadius:0, padding:"5px 7px", fontSize:12, cursor:"pointer", lineHeight:1 }}>×</button>
+            </div>
+          ))}
         </div>
 
-        {progDays.length === 0 ? (
-          <div style={{ textAlign:"center", padding:"48px 20px", color:"#bbb" }}>
-            <div style={{ fontSize:15, fontWeight:700, color:"#888", marginBottom:8 }}>No workout days yet</div>
-            <div style={{ fontSize:13 }}>Split builder coming soon — you'll be able to add and name your own workout days here.</div>
+        {/* Add day */}
+        {showAddDay ? (
+          <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+            <input value={newDayName} onChange={e=>setNewDayName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAddDay()} placeholder="Day name (e.g. Push Day)" autoFocus style={{ ...inp, flex:1 }} />
+            <button onClick={handleAddDay} style={{ padding:"7px 14px", background:"#0a0a0a", color:"#fff", border:"none", borderRadius:8, fontFamily:"inherit", fontSize:13, fontWeight:700, cursor:"pointer" }}>Add</button>
+            <button onClick={()=>{setShowAddDay(false);setNewDayName("");}} style={{ padding:"7px 10px", background:"none", border:"1.5px solid #e8e8e8", borderRadius:8, color:"#bbb", fontFamily:"inherit", fontSize:13, cursor:"pointer" }}>✕</button>
           </div>
-        ) : <>
-        <div style={{ display:"flex", gap:6, overflowX:"auto", marginBottom:12 }}>
-          {progDays.map(dk => <button key={dk} onClick={()=>setActiveDay(dk)} style={{ background:activeDay===dk?"#0a0a0a":"#f5f5f5", color:activeDay===dk?"#fff":"#888", border:`1.5px solid ${activeDay===dk?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, padding:"5px 12px", fontSize:11, fontFamily:"inherit", fontWeight:activeDay===dk?700:500, cursor:"pointer", whiteSpace:"nowrap" }}>{dk}</button>)}
-        </div>
+        ) : (
+          <button onClick={()=>setShowAddDay(true)} style={{ width:"100%", padding:"8px 11px", background:"transparent", border:"1.5px dashed #d0d0d0", borderRadius:9, color:"#aaa", fontSize:12, fontFamily:"inherit", fontWeight:600, cursor:"pointer", marginBottom:14, textAlign:"left" }}>+ Add workout day</button>
+        )}
 
-        {curEditorDay?.label && <div style={{ fontSize:11, color:"#bbb", marginBottom:10, fontStyle:"italic" }}>{curEditorDay.label}</div>}
-
-        {display.map(ex => (
-          <EditorExRow key={ex.id} ex={ex}
-            onUpdate={u => setExs(exs.map(e => e.id===ex.id ? u : e))}
-            onDelete={() => setExs(exs.filter(e => e.id!==ex.id))}
-            onGripStart={setDragId}
-            elRef={el => refs.current[ex.id]=el}
-            isDragging={dragId===ex.id}
-          />
-        ))}
-        <button onClick={()=>setShowAdd(true)} style={{ width:"100%", padding:11, background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:10, color:"#bbb", fontSize:12, fontFamily:"inherit", fontWeight:600, cursor:"pointer", marginTop:4 }}>+ Add exercise</button>
-        </>}
+        {curDay ? <>
+          {curDay?.label && curDay.label !== activeDay && <div style={{ fontSize:11, color:"#bbb", marginBottom:10, fontStyle:"italic" }}>{curDay.label}</div>}
+          {display.map(ex => (
+            <EditorExRow key={ex.id} ex={ex}
+              onUpdate={u => setExs(exs.map(e => e.id===ex.id ? u : e))}
+              onDelete={() => setExs(exs.filter(e => e.id!==ex.id))}
+              onGripStart={setDragId}
+              elRef={el => refs.current[ex.id]=el}
+              isDragging={dragId===ex.id}
+            />
+          ))}
+          <button onClick={()=>setShowAdd(true)} style={{ width:"100%", padding:11, background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:10, color:"#bbb", fontSize:12, fontFamily:"inherit", fontWeight:600, cursor:"pointer", marginTop:4 }}>+ Add exercise</button>
+        </> : editDays.length === 0 ? null : (
+          <div style={{ textAlign:"center", padding:"30px 20px", color:"#bbb", fontSize:13 }}>Select a day above to edit its exercises.</div>
+        )}
       </div>
 
       <div style={{ borderTop:"1px solid #e8e8e8", padding:"12px 14px 16px", background:"#fff", flexShrink:0 }}>
         <button onClick={doSave} disabled={saving} style={{ width:"100%", padding:14, background:saved?"#16a34a":"#0a0a0a", color:"#fff", border:"none", borderRadius:12, fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"pointer", letterSpacing:"0.06em" }}>
-          {saving ? "SAVING..." : saved ? "✓ SAVED!" : `SAVE — ${scope==="both"?"Both Josh & AJ":scope}`}
+          {saving ? "SAVING..." : saved ? "✓ SAVED!" : `SAVE — ${scope==="both"?"Both Josh & AJ":"Just me"}`}
         </button>
       </div>
 
       {showAdd && <AddModal onAdd={ex=>{setExs([...exs,ex]);setShowAdd(false);}} onClose={()=>setShowAdd(false)} />}
+    </div>
+  );
+}
+
+// ── Split Picker Sheet ──────────────────────────────────────────────────────
+
+function SplitPickerSheet({ splits, activeSplitId, onSelect, onCreate, onClose }) {
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const submit = () => { const n = newName.trim(); if (n) { onCreate(n); setCreating(false); setNewName(""); } };
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:100, display:"flex", alignItems:"flex-end" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:"100%", background:"#fff", borderRadius:"18px 18px 0 0", paddingBottom:40, maxHeight:"72vh", overflowY:"auto" }}>
+        <div style={{ padding:"18px 20px 14px", borderBottom:"1px solid #f0f0f0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ fontSize:13, fontWeight:800, color:"#0a0a0a", letterSpacing:"0.04em" }}>YOUR SPLITS</div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>×</button>
+        </div>
+        {splits.map(s => (
+          <button key={s.id} onClick={()=>onSelect(s.id)} style={{ display:"flex", alignItems:"center", width:"100%", padding:"15px 20px", background:"none", border:"none", borderBottom:"1px solid #f5f5f5", textAlign:"left", fontFamily:"inherit", cursor:"pointer" }}>
+            <div style={{ width:18, height:18, borderRadius:"50%", border:`2.5px solid ${s.id===activeSplitId?"#0a0a0a":"#d0d0d0"}`, background:s.id===activeSplitId?"#0a0a0a":"transparent", marginRight:14, flexShrink:0 }} />
+            <div>
+              <div style={{ fontSize:14, fontWeight:700, color:"#0a0a0a" }}>{s.name}</div>
+              <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>{s.days.length} day{s.days.length!==1?"s":""}</div>
+            </div>
+            {s.id===activeSplitId && <div style={{ marginLeft:"auto", fontSize:11, fontWeight:700, color:"#0a0a0a" }}>Active</div>}
+          </button>
+        ))}
+        {creating ? (
+          <div style={{ display:"flex", gap:8, padding:"14px 20px" }}>
+            <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="Split name (e.g. Powerlifting)" autoFocus style={{ ...inp, flex:1, fontSize:14 }} />
+            <button onClick={submit} style={{ padding:"8px 14px", background:"#0a0a0a", color:"#fff", border:"none", borderRadius:9, fontFamily:"inherit", fontSize:13, fontWeight:700, cursor:"pointer" }}>Create</button>
+          </div>
+        ) : (
+          <button onClick={()=>setCreating(true)} style={{ display:"block", width:"100%", padding:"16px 20px", background:"none", border:"none", textAlign:"left", fontFamily:"inherit", cursor:"pointer", color:"#ea580c", fontSize:14, fontWeight:700 }}>+ Create new split</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Day Select Screen ────────────────────────────────────────────────────────
+
+function DaySelectScreen({ user, userDoc, activeSplit, activeDays, activeProgram, onSelectDay, onSettings, onPerformance, onEditor, onSwitchSplit, onCreateSplit, onReorderDays }) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
+  const dayRefs = useRef({});
+
+  useEffect(() => {
+    if (dragIdx === null) return;
+    const move = cy => {
+      let target = activeDays.length - 1;
+      for (let i = 0; i < activeDays.length; i++) {
+        const el = dayRefs.current[i];
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (cy < r.top + r.height / 2) { target = i; break; }
+      }
+      setOverIdx(target);
+    };
+    const mm = e => move(e.clientY);
+    const tm = e => { e.preventDefault(); move(e.touches[0].clientY); };
+    const end = () => {
+      if (dragIdx !== null && overIdx !== null && dragIdx !== overIdx) {
+        const d = [...activeDays]; const [item] = d.splice(dragIdx, 1); d.splice(overIdx, 0, item);
+        onReorderDays(d);
+      }
+      setDragIdx(null); setOverIdx(null);
+    };
+    window.addEventListener("mousemove", mm); window.addEventListener("touchmove", tm, { passive:false });
+    window.addEventListener("mouseup", end); window.addEventListener("touchend", end);
+    return () => { window.removeEventListener("mousemove", mm); window.removeEventListener("touchmove", tm); window.removeEventListener("mouseup", end); window.removeEventListener("touchend", end); };
+  }, [dragIdx, overIdx, activeDays, onReorderDays]);
+
+  const displayDays = dragIdx !== null && overIdx !== null && dragIdx !== overIdx ? (() => {
+    const d = [...activeDays]; const [item] = d.splice(dragIdx, 1); d.splice(overIdx, 0, item); return d;
+  })() : activeDays;
+
+  return (
+    <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", padding:"36px 20px" }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
+      <div style={{ maxWidth:340, margin:"0 auto" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
+          <div>
+            <div style={{ fontSize:19, fontWeight:900, color:"#0a0a0a" }}>{user}</div>
+            <div style={{ fontSize:11, color:"#bbb" }}>Select today's workout</div>
+          </div>
+          <button onClick={onSettings} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>⚙️</button>
+        </div>
+
+        <button onClick={()=>setShowPicker(true)} style={{ display:"block", width:"100%", marginBottom:20, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+          <div style={{ fontSize:10, color:"#bbb", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:4 }}>Active split</div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ fontSize:16, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.02em" }}>{activeSplit?.name || "No split selected"}</div>
+            <div style={{ fontSize:14, color:"#bbb" }}>▾</div>
+          </div>
+        </button>
+
+        {activeDays.length > 0 ? displayDays.map((dk, displayIdx) => {
+          const origIdx = activeDays.indexOf(dk);
+          const isDragging = dragIdx === origIdx;
+          return (
+            <div key={dk} ref={el => dayRefs.current[origIdx] = el}
+              style={{ display:"flex", alignItems:"center", marginBottom:10, opacity:isDragging?0.4:1 }}>
+              <div onMouseDown={()=>setDragIdx(origIdx)} onTouchStart={()=>setDragIdx(origIdx)}
+                style={{ cursor:"grab", color:"#ccc", fontSize:18, padding:"0 10px 0 2px", touchAction:"none", userSelect:"none", flexShrink:0 }}>⠿</div>
+              <button onClick={()=>onSelectDay(dk)} style={{ flex:1, padding:"13px 16px", background:"#fff", border:`1.5px solid ${overIdx===origIdx&&dragIdx!==origIdx?"#888":"#e8e8e8"}`, borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+                <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>{dk}</div>
+                <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>
+                  {DAY_META[dk] ? `${DAY_META[dk].day} · ${DAY_META[dk].sub}` : (activeProgram[dk]?.subtitle || "")}
+                </div>
+              </button>
+            </div>
+          );
+        }) : (
+          <div style={{ textAlign:"center", padding:"40px 20px", color:"#bbb" }}>
+            <div style={{ fontSize:15, fontWeight:700, color:"#888", marginBottom:8 }}>No workout days yet</div>
+            <div style={{ fontSize:13 }}>Tap "Edit program" to add days to this split.</div>
+          </div>
+        )}
+
+        <button onClick={onPerformance} style={{ display:"block", width:"100%", marginTop:10, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+          <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>📊 Performance</div>
+          <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>PR board · 1RM calculator</div>
+        </button>
+        <button onClick={onEditor} style={{ display:"block", width:"100%", marginTop:10, padding:"11px 16px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit", color:"#bbb", fontSize:12, fontWeight:600 }}>✏️  Edit program</button>
+      </div>
+
+      {showPicker && (
+        <SplitPickerSheet
+          splits={userDoc.splits}
+          activeSplitId={userDoc.activeSplitId}
+          onSelect={id=>{ onSwitchSplit(id); setShowPicker(false); }}
+          onCreate={name=>{ onCreateSplit(name); setShowPicker(false); }}
+          onClose={()=>setShowPicker(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1296,179 +1474,183 @@ function OnboardScreen({ onSave }) {
 // ── App Root ────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [screen, setScreen] = useState("loading");
-  const [uid, setUid] = useState(null);
-  const [user, setUser] = useState(null);
+  const [screen, setScreen]       = useState("loading");
+  const [uid, setUid]             = useState(null);
+  const [user, setUser]           = useState(null);
   const [viewingUser, setViewingUser] = useState(null);
-  const [activeDay, setActiveDay] = useState("Upper A");
-  const [programs, setPrograms] = useState({});
-  const [loadingProgram, setLoadingProgram] = useState(false);
+  const [activeDay, setActiveDay] = useState(null);
+  const [splitsData, setSplitsData] = useState({});   // { [userName]: { activeSplitId, splits[] } }
+  const [loadingSplits, setLoadingSplits] = useState(false);
   const [userSettings, setUserSettings] = useState({});
 
-  const currentUser = viewingUser || user;
-  const isReadOnly  = !!viewingUser;
-  const otherUser   = USERS.find(u => u !== user);
+  const currentUser  = viewingUser || user;
+  const isReadOnly   = !!viewingUser;
+  const otherUser    = USERS.find(u => u !== user);
 
-  // Wire Anonymous Auth — runs once on mount
+  // Derived from active user's splits doc
+  const userDoc      = splitsData[currentUser] || { activeSplitId: null, splits: [] };
+  const activeSplit  = userDoc.splits.find(s => s.id === userDoc.activeSplitId) || userDoc.splits[0] || null;
+  const activeProgram = activeSplit?.program || {};
+  const activeDays   = activeSplit?.days || [];
+
+  // Anonymous Auth
   useEffect(() => {
-    // Resolve instantly from localStorage — no network wait for returning users
     const cached = localStorage.getItem("stack_user_name");
-    if (cached) {
-      setUser(cached);
-      setScreen("dayselect");
-    }
-
+    if (cached) { setUser(cached); setScreen("dayselect"); }
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUid(firebaseUser.uid);
         if (!cached) {
           const profile = await fbLoadUserProfile(firebaseUser.uid);
-          if (profile?.name) {
-            setUser(profile.name);
-            setScreen("dayselect");
-          } else {
-            setScreen("onboard");
-          }
+          if (profile?.name) { setUser(profile.name); setScreen("dayselect"); }
+          else setScreen("onboard");
         }
       } else {
         signInAnonymously(auth).catch(() => { if (!cached) setScreen("onboard"); });
       }
     });
-    // Fallback: if auth hangs for 6 seconds and still no name, show onboard
     const timeout = setTimeout(() => setScreen(s => s === "loading" ? "onboard" : s), 6000);
     return () => { unsub(); clearTimeout(timeout); };
   }, []);
 
-  // Load program + settings whenever the active user changes
+  // Load splits + settings when active user changes
   useEffect(() => {
     if (!currentUser) return;
-    setLoadingProgram(true);
+    setLoadingSplits(true);
     const isNewUser = !USERS.includes(currentUser);
-    Promise.all([fbLoadProgram(currentUser, isNewUser), fbLoadSettings(currentUser)]).then(([p, s]) => {
-      setPrograms(prev => ({...prev, [currentUser]:p}));
-      setUserSettings(prev => ({...prev, [currentUser]:s}));
-      setLoadingProgram(false);
+    Promise.all([fbLoadSplits(currentUser, isNewUser), fbLoadSettings(currentUser)]).then(([sd, s]) => {
+      setSplitsData(prev => ({ ...prev, [currentUser]: sd }));
+      setUserSettings(prev => ({ ...prev, [currentUser]: s }));
+      setLoadingSplits(false);
     });
   }, [currentUser]);
 
   const handleOnboard = async (name) => {
     await fbSaveUserProfile(uid, name);
-    setUser(name);
-    setScreen("dayselect");
+    setUser(name); setScreen("dayselect");
   };
 
   const handleChangeName = async (name) => {
     await fbSaveUserProfile(uid, name);
-    setUser(name);
-    setScreen("dayselect");
+    setUser(name); setScreen("dayselect");
   };
 
-  const handleSaveProgram = (targets, prog) => setPrograms(prev => { const n={...prev}; targets.forEach(u=>{n[u]=copy(prog);}); return n; });
+  const handleSwitchSplit = (splitId) => {
+    setSplitsData(prev => {
+      const ud = prev[user] || { activeSplitId: null, splits: [] };
+      const newDoc = { ...ud, activeSplitId: splitId };
+      fbSaveSplits(user, newDoc);
+      return { ...prev, [user]: newDoc };
+    });
+    setActiveDay(null);
+  };
+
+  const handleCreateSplit = (name) => {
+    const id = newSplitId();
+    setSplitsData(prev => {
+      const ud = prev[user] || { activeSplitId: null, splits: [] };
+      const newDoc = { activeSplitId: id, splits: [...ud.splits, { id, name, days: [], program: {} }] };
+      fbSaveSplits(user, newDoc);
+      return { ...prev, [user]: newDoc };
+    });
+    setActiveDay(null);
+  };
+
+  // Called by EditorScreen when saving — updates the split for each target user
+  const handleSaveSplit = async (updatedSplit, targets) => {
+    for (const targetUser of targets) {
+      setSplitsData(prev => {
+        const ud = prev[targetUser] || { activeSplitId: updatedSplit.id, splits: [] };
+        const exists = ud.splits.some(s => s.id === (ud.activeSplitId || updatedSplit.id));
+        const splits = ud.splits.length === 0
+          ? [{ ...updatedSplit, id: ud.activeSplitId || updatedSplit.id }]
+          : ud.splits.map((s, i) => (targetUser === user ? s.id === ud.activeSplitId : i === 0)
+              ? { ...s, days: updatedSplit.days, program: updatedSplit.program } : s);
+        const activeSplitId = ud.activeSplitId || (exists ? ud.activeSplitId : updatedSplit.id);
+        const newDoc = { activeSplitId: activeSplitId || updatedSplit.id, splits };
+        fbSaveSplits(targetUser, newDoc);
+        return { ...prev, [targetUser]: newDoc };
+      });
+    }
+  };
+
+  const handleReorderDays = (newDays) => {
+    if (!activeSplit) return;
+    setSplitsData(prev => {
+      const ud = prev[user];
+      const splits = ud.splits.map(s => s.id === ud.activeSplitId ? { ...s, days: newDays } : s);
+      const newDoc = { ...ud, splits };
+      fbSaveSplits(user, newDoc);
+      return { ...prev, [user]: newDoc };
+    });
+  };
 
   const handleUpdateSetting = async (u, key, val) => {
-    const next = {...userSettings[u], [key]:val};
-    setUserSettings(prev => ({...prev, [u]:next}));
+    const next = { ...userSettings[u], [key]: val };
+    setUserSettings(prev => ({ ...prev, [u]: next }));
     await fbSaveSettings(u, next);
   };
+
+  const font = <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />;
 
   // ── Loading screen
   if (screen === "loading") return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100dvh", fontFamily:"Barlow,sans-serif", background:"#f5f5f5" }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-      <div style={{ fontSize:48, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em" }}>STACK</div>
+      {font}<div style={{ fontSize:48, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em" }}>STACK</div>
     </div>
   );
 
-  // ── Onboard screen
   if (screen === "onboard") return <OnboardScreen onSave={handleOnboard} />;
 
-  // ── Settings screen
   if (screen === "settings") return (
-    <div style={{ height:"100dvh" }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
+    <div style={{ height:"100dvh" }}>{font}
       <SettingsScreen user={user} userSettings={userSettings} onUpdate={handleUpdateSetting} onBack={()=>setScreen("dayselect")} onChangeName={handleChangeName} />
     </div>
   );
 
-  // ── Day select screen
-  if (screen === "dayselect") {
-    const userProgram = programs[user] || {};
-    const programDays = Object.keys(userProgram);
-    return (
-      <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", padding:"36px 20px" }}>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-        <div style={{ maxWidth:340, margin:"0 auto" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:28 }}>
-            <div>
-              <div style={{ fontSize:19, fontWeight:900, color:"#0a0a0a" }}>{user}</div>
-              <div style={{ fontSize:11, color:"#bbb" }}>Select today's workout</div>
-            </div>
-            <button onClick={()=>setScreen("settings")} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>⚙️</button>
-          </div>
-          {programDays.length > 0 ? (
-            <>
-              {USERS.includes(user) && (
-                <div style={{ marginBottom:24 }}>
-                  <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:6 }}>Phase 1</div>
-                  <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.03em", lineHeight:1.1 }}>Athletic<br />Hypertrophy Split</div>
-                </div>
-              )}
-              {programDays.map(dk => (
-                <button key={dk} onClick={()=>{setActiveDay(dk);setScreen("workout");}} style={{ display:"block", width:"100%", marginBottom:10, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
-                  <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>{dk}</div>
-                  <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>
-                    {DAY_META[dk] ? `${DAY_META[dk].day} · ${DAY_META[dk].sub}` : (userProgram[dk]?.subtitle || "")}
-                  </div>
-                </button>
-              ))}
-            </>
-          ) : (
-            <div style={{ textAlign:"center", padding:"48px 20px", color:"#bbb" }}>
-              <div style={{ fontSize:15, fontWeight:700, color:"#888", marginBottom:8 }}>No workouts yet</div>
-              <div style={{ fontSize:13 }}>Use "Edit program" below to build your first split.</div>
-            </div>
-          )}
-          <button onClick={()=>setScreen("performance")} style={{ display:"block", width:"100%", marginTop:10, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
-            <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>📊 Performance</div>
-            <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>PR board · 1RM calculator</div>
-          </button>
-          <button onClick={()=>setScreen("editor")} style={{ display:"block", width:"100%", marginTop:10, padding:"11px 16px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit", color:"#bbb", fontSize:12, fontWeight:600 }}>✏️  Edit program</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Performance screen
-  if (screen === "performance") return (
-    <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-      <PerformanceScreen user={user} program={programs[user] || {}} onBack={()=>setScreen("dayselect")} />
+  if (screen === "dayselect") return (
+    <div style={{ height:"100dvh" }}>{font}
+      <DaySelectScreen
+        user={user} userDoc={userDoc} activeSplit={activeSplit}
+        activeDays={activeDays} activeProgram={activeProgram}
+        onSelectDay={dk => { setActiveDay(dk); setScreen("workout"); }}
+        onSettings={() => setScreen("settings")}
+        onPerformance={() => setScreen("performance")}
+        onEditor={() => setScreen("editor")}
+        onSwitchSplit={handleSwitchSplit}
+        onCreateSplit={handleCreateSplit}
+        onReorderDays={handleReorderDays}
+      />
     </div>
   );
 
-  // ── Editor screen
+  if (screen === "performance") return (
+    <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>{font}
+      <PerformanceScreen user={user} program={activeProgram} onBack={()=>setScreen("dayselect")} />
+    </div>
+  );
+
   if (screen === "editor") return (
-    <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-      <EditorScreen programs={programs} currentUser={user} onSave={handleSaveProgram} onBack={()=>setScreen("dayselect")} />
+    <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>{font}
+      <EditorScreen split={activeSplit} currentUser={user} onSave={handleSaveSplit} onBack={()=>setScreen("dayselect")} />
     </div>
   );
 
   // ── Workout screen
   return (
-    <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-      {loadingProgram ? (
+    <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>{font}
+      {loadingSplits ? (
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100dvh", fontFamily:"Barlow,sans-serif", color:"#bbb" }}>Loading...</div>
       ) : (
         <WorkoutScreen
           user={currentUser}
           readOnly={isReadOnly}
-          program={programs[currentUser] || {}}
+          program={activeProgram}
+          days={activeDays}
           showRIR={userSettings[currentUser]?.showRIR !== false}
-          onBack={()=>{setScreen("dayselect");setViewingUser(null);}}
+          onBack={() => { setScreen("dayselect"); setViewingUser(null); }}
           otherUser={otherUser}
-          onViewOther={()=>isReadOnly?setViewingUser(null):setViewingUser(otherUser)}
+          onViewOther={() => isReadOnly ? setViewingUser(null) : setViewingUser(otherUser)}
           initDay={activeDay}
         />
       )}
