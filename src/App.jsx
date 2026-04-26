@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 
 const USERS = ["Josh", "AJ"];
 const DAY_KEYS = ["Upper A", "Lower A", "Upper B", "Lower B", "Accessory"];
@@ -202,11 +203,11 @@ async function fbSaveDraft(user, dayKey, draft) {
 async function fbClearDraft(user, dayKey) {
   try { await setDoc(doc(db, "drafts", `${user}_${dayKey}`), { draft: {} }); } catch(e) { console.error(e); }
 }
-async function fbLoadProgram(user) {
+async function fbLoadProgram(user, isNewUser = false) {
   try {
     const snap = await getDoc(doc(db, "programs", user));
-    return snap.exists() ? snap.data().program : copy(DEFAULT_PROGRAM);
-  } catch { return copy(DEFAULT_PROGRAM); }
+    return snap.exists() ? snap.data().program : (isNewUser ? {} : copy(DEFAULT_PROGRAM));
+  } catch { return isNewUser ? {} : copy(DEFAULT_PROGRAM); }
 }
 async function fbSaveProgram(user, program) {
   try { await setDoc(doc(db, "programs", user), { program }); } catch(e) { console.error(e); }
@@ -219,6 +220,17 @@ async function fbLoadSettings(user) {
 }
 async function fbSaveSettings(user, settings) {
   try { await setDoc(doc(db, "settings", user), settings); } catch(e) { console.error(e); }
+}
+async function fbLoadUserProfile(uid) {
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    return snap.exists() ? snap.data() : null;
+  } catch { return null; }
+}
+async function fbSaveUserProfile(uid, name) {
+  try {
+    await setDoc(doc(db, "users", uid), { name, createdAt: new Date().toISOString() });
+  } catch(e) { console.error(e); }
 }
 
 // ── Analysis Screen ─────────────────────────────────────────────────────────
@@ -921,7 +933,7 @@ function WorkoutScreen({ user, readOnly, program, onBack, otherUser, onViewOther
 
 // ── Settings Screen ─────────────────────────────────────────────────────────
 
-function SettingsScreen({ userSettings, onUpdate, onBack }) {
+function SettingsScreen({ user, userSettings, onUpdate, onBack }) {
   return (
     <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", minHeight:"100dvh", background:"#f5f5f5" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 16px", borderBottom:"1px solid #e8e8e8", background:"#fff" }}>
@@ -929,20 +941,18 @@ function SettingsScreen({ userSettings, onUpdate, onBack }) {
         <div style={{ fontSize:17, fontWeight:900, color:"#0a0a0a" }}>Settings</div>
       </div>
       <div style={{ padding:16 }}>
-        {USERS.map(u => (
-          <div key={u} style={{ background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, padding:16, marginBottom:12 }}>
-            <div style={{ fontSize:15, fontWeight:800, color:"#0a0a0a", marginBottom:14 }}>{u}</div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div>
-                <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>Show RIR selector</div>
-                <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>Reps in reserve on each set</div>
-              </div>
-              <div onClick={() => onUpdate(u, "showRIR", !userSettings[u]?.showRIR)} style={{ width:44, height:24, borderRadius:12, background:userSettings[u]?.showRIR?"#16a34a":"#e8e8e8", position:"relative", cursor:"pointer", transition:"background .2s" }}>
-                <div style={{ position:"absolute", top:3, left:userSettings[u]?.showRIR?22:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
-              </div>
+        <div style={{ background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, padding:16, marginBottom:12 }}>
+          <div style={{ fontSize:15, fontWeight:800, color:"#0a0a0a", marginBottom:14 }}>{user}</div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>Show RIR selector</div>
+              <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>Reps in reserve on each set</div>
+            </div>
+            <div onClick={() => onUpdate(user, "showRIR", !userSettings[user]?.showRIR)} style={{ width:44, height:24, borderRadius:12, background:userSettings[user]?.showRIR?"#16a34a":"#e8e8e8", position:"relative", cursor:"pointer", transition:"background .2s" }}>
+              <div style={{ position:"absolute", top:3, left:userSettings[user]?.showRIR?22:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
             </div>
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
@@ -1182,30 +1192,99 @@ function EditorScreen({ programs, onSave, onBack, currentUser }) {
   );
 }
 
+// ── Onboard Screen ──────────────────────────────────────────────────────────
+
+function OnboardScreen({ onSave }) {
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    await onSave(trimmed);
+  };
+
+  return (
+    <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
+      <div style={{ width:"100%", maxWidth:340 }}>
+        <div style={{ marginBottom:40 }}>
+          <div style={{ fontSize:48, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em", lineHeight:1 }}>STACK</div>
+        </div>
+        <div style={{ fontSize:13, color:"#888", fontWeight:600, marginBottom:20 }}>What's your name?</div>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleSave()}
+          placeholder="Your name"
+          autoFocus
+          style={{ ...inp, fontSize:16, padding:"12px 14px", marginBottom:12 }}
+        />
+        <button
+          onClick={handleSave}
+          disabled={!name.trim() || saving}
+          style={{ display:"block", width:"100%", padding:"14px 18px", background:name.trim()?"#0a0a0a":"#e8e8e8", border:"none", borderRadius:12, color:name.trim()?"#fff":"#bbb", fontSize:15, fontWeight:800, fontFamily:"inherit", cursor:name.trim()?"pointer":"default", transition:"background .2s, color .2s" }}
+        >
+          {saving ? "..." : "Let's go →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── App Root ────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [screen, setScreen] = useState("select");
+  const [screen, setScreen] = useState("loading");
+  const [uid, setUid] = useState(null);
   const [user, setUser] = useState(null);
   const [viewingUser, setViewingUser] = useState(null);
   const [activeDay, setActiveDay] = useState("Upper A");
-  const [programs, setPrograms] = useState({ Josh:copy(DEFAULT_PROGRAM), AJ:copy(DEFAULT_PROGRAM) });
+  const [programs, setPrograms] = useState({});
   const [loadingProgram, setLoadingProgram] = useState(false);
-  const [userSettings, setUserSettings] = useState({ Josh:{showRIR:true}, AJ:{showRIR:true} });
+  const [userSettings, setUserSettings] = useState({});
 
   const currentUser = viewingUser || user;
   const isReadOnly  = !!viewingUser;
   const otherUser   = USERS.find(u => u !== user);
 
+  // Wire Anonymous Auth — runs once on mount
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setUid(firebaseUser.uid);
+        const profile = await fbLoadUserProfile(firebaseUser.uid);
+        if (profile?.name) {
+          setUser(profile.name);
+          setScreen("dayselect");
+        } else {
+          setScreen("onboard");
+        }
+      } else {
+        signInAnonymously(auth);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Load program + settings whenever the active user changes
   useEffect(() => {
     if (!currentUser) return;
     setLoadingProgram(true);
-    Promise.all([fbLoadProgram(currentUser), fbLoadSettings(currentUser)]).then(([p, s]) => {
+    const isNewUser = !USERS.includes(currentUser);
+    Promise.all([fbLoadProgram(currentUser, isNewUser), fbLoadSettings(currentUser)]).then(([p, s]) => {
       setPrograms(prev => ({...prev, [currentUser]:p}));
       setUserSettings(prev => ({...prev, [currentUser]:s}));
       setLoadingProgram(false);
     });
   }, [currentUser]);
+
+  const handleOnboard = async (name) => {
+    await fbSaveUserProfile(uid, name);
+    setUser(name);
+    setScreen("dayselect");
+  };
 
   const handleSaveProgram = (targets, prog) => setPrograms(prev => { const n={...prev}; targets.forEach(u=>{n[u]=copy(prog);}); return n; });
 
@@ -1215,67 +1294,78 @@ export default function App() {
     await fbSaveSettings(u, next);
   };
 
-  // ── Select screen
-  if (screen === "select") return (
-    <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+  // ── Loading screen
+  if (screen === "loading") return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100dvh", fontFamily:"Barlow,sans-serif", background:"#f5f5f5" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-      <div style={{ width:"100%", maxWidth:340 }}>
-        <div style={{ marginBottom:40 }}>
-          <div style={{ fontSize:48, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em", lineHeight:1 }}>STACK</div>
-        </div>
-        <div style={{ fontSize:10, color:"#bbb", marginBottom:12, letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:700 }}>Who's logging?</div>
-        {USERS.map(u => (
-          <button key={u} onClick={()=>{setUser(u);setViewingUser(null);setScreen("dayselect");}} style={{ display:"block", width:"100%", marginBottom:10, padding:"15px 18px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, color:"#0a0a0a", fontSize:16, fontWeight:700, fontFamily:"inherit", cursor:"pointer", textAlign:"left" }}>{u}</button>
-        ))}
-        <button onClick={()=>setScreen("settings")} style={{ display:"block", width:"100%", marginTop:8, padding:"12px 18px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:12, color:"#bbb", fontSize:12, fontWeight:600, fontFamily:"inherit", cursor:"pointer", textAlign:"left" }}>⚙️  Settings</button>
-      </div>
+      <div style={{ fontSize:48, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em" }}>STACK</div>
     </div>
   );
+
+  // ── Onboard screen
+  if (screen === "onboard") return <OnboardScreen onSave={handleOnboard} />;
 
   // ── Settings screen
   if (screen === "settings") return (
     <div style={{ height:"100dvh" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-      <SettingsScreen userSettings={userSettings} onUpdate={handleUpdateSetting} onBack={()=>setScreen("select")} />
+      <SettingsScreen user={user} userSettings={userSettings} onUpdate={handleUpdateSetting} onBack={()=>setScreen("dayselect")} />
     </div>
   );
 
   // ── Day select screen
-  if (screen === "dayselect") return (
-    <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", padding:"36px 20px" }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-      <div style={{ maxWidth:340, margin:"0 auto" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:28 }}>
-          <button onClick={()=>setScreen("select")} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>←</button>
-          <div>
-            <div style={{ fontSize:19, fontWeight:900, color:"#0a0a0a" }}>{user}</div>
-            <div style={{ fontSize:11, color:"#bbb" }}>Select today's workout</div>
+  if (screen === "dayselect") {
+    const userProgram = programs[user] || {};
+    const programDays = Object.keys(userProgram);
+    return (
+      <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", padding:"36px 20px" }}>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
+        <div style={{ maxWidth:340, margin:"0 auto" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:28 }}>
+            <div>
+              <div style={{ fontSize:19, fontWeight:900, color:"#0a0a0a" }}>{user}</div>
+              <div style={{ fontSize:11, color:"#bbb" }}>Select today's workout</div>
+            </div>
+            <button onClick={()=>setScreen("settings")} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>⚙️</button>
           </div>
-        </div>
-        <div style={{ marginBottom:24 }}>
-          <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:6 }}>Phase 1</div>
-          <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.03em", lineHeight:1.1 }}>Athletic<br />Hypertrophy Split</div>
-        </div>
-        {DAY_KEYS.map(dk => (
-          <button key={dk} onClick={()=>{setActiveDay(dk);setScreen("workout");}} style={{ display:"block", width:"100%", marginBottom:10, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
-            <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>{dk}</div>
-            <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>{DAY_META[dk].day} · {DAY_META[dk].sub}</div>
+          {programDays.length > 0 ? (
+            <>
+              {USERS.includes(user) && (
+                <div style={{ marginBottom:24 }}>
+                  <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:6 }}>Phase 1</div>
+                  <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.03em", lineHeight:1.1 }}>Athletic<br />Hypertrophy Split</div>
+                </div>
+              )}
+              {programDays.map(dk => (
+                <button key={dk} onClick={()=>{setActiveDay(dk);setScreen("workout");}} style={{ display:"block", width:"100%", marginBottom:10, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>{dk}</div>
+                  <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>
+                    {DAY_META[dk] ? `${DAY_META[dk].day} · ${DAY_META[dk].sub}` : (userProgram[dk]?.subtitle || "")}
+                  </div>
+                </button>
+              ))}
+            </>
+          ) : (
+            <div style={{ textAlign:"center", padding:"48px 20px", color:"#bbb" }}>
+              <div style={{ fontSize:15, fontWeight:700, color:"#888", marginBottom:8 }}>No workouts yet</div>
+              <div style={{ fontSize:13 }}>Use "Edit program" below to build your first split.</div>
+            </div>
+          )}
+          <button onClick={()=>setScreen("performance")} style={{ display:"block", width:"100%", marginTop:10, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+            <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>📊 Performance</div>
+            <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>PR board · 1RM calculator</div>
           </button>
-        ))}
-        <button onClick={()=>setScreen("performance")} style={{ display:"block", width:"100%", marginTop:10, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
-          <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>📊 Performance</div>
-          <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>PR board · 1RM calculator</div>
-        </button>
-        <button onClick={()=>setScreen("editor")} style={{ display:"block", width:"100%", marginTop:10, padding:"11px 16px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit", color:"#bbb", fontSize:12, fontWeight:600 }}>✏️  Edit program</button>
+          <button onClick={()=>setScreen("editor")} style={{ display:"block", width:"100%", marginTop:10, padding:"11px 16px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit", color:"#bbb", fontSize:12, fontWeight:600 }}>✏️  Edit program</button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   // ── Performance screen
   if (screen === "performance") return (
     <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-      <PerformanceScreen user={user} program={programs[user] || DEFAULT_PROGRAM} onBack={()=>setScreen("dayselect")} />
+      <PerformanceScreen user={user} program={programs[user] || {}} onBack={()=>setScreen("dayselect")} />
     </div>
   );
 
@@ -1297,7 +1387,7 @@ export default function App() {
         <WorkoutScreen
           user={currentUser}
           readOnly={isReadOnly}
-          program={programs[currentUser] || DEFAULT_PROGRAM}
+          program={programs[currentUser] || {}}
           showRIR={userSettings[currentUser]?.showRIR !== false}
           onBack={()=>{setScreen("dayselect");setViewingUser(null);}}
           otherUser={otherUser}
