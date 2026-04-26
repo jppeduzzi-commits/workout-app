@@ -222,12 +222,19 @@ async function fbSaveSettings(user, settings) {
   try { await setDoc(doc(db, "settings", user), settings); } catch(e) { console.error(e); }
 }
 async function fbLoadUserProfile(uid) {
+  const local = localStorage.getItem("stack_user_name");
+  if (local) return { name: local };
   try {
     const snap = await getDoc(doc(db, "users", uid));
-    return snap.exists() ? snap.data() : null;
+    if (snap.exists()) {
+      localStorage.setItem("stack_user_name", snap.data().name);
+      return snap.data();
+    }
+    return null;
   } catch { return null; }
 }
 async function fbSaveUserProfile(uid, name) {
+  localStorage.setItem("stack_user_name", name);
   try {
     await setDoc(doc(db, "users", uid), { name, createdAt: new Date().toISOString() });
   } catch(e) { console.error(e); }
@@ -809,7 +816,8 @@ function WorkoutScreen({ user, readOnly, program, onBack, otherUser, onViewOther
   const [autoSaved, setAutoSaved] = useState(false);
   const [analysisEx, setAnalysisEx] = useState(null);
   const autoSaveTimer = useRef(null);
-  const curDay     = program[activeDay];
+  const programDays = Object.keys(program);
+  const curDay      = program[activeDay];
   const lastSession = sessions[sessions.length-1] || null;
 
   useEffect(() => {
@@ -864,20 +872,27 @@ function WorkoutScreen({ user, readOnly, program, onBack, otherUser, onViewOther
             <div style={{ fontSize:10, color:"#bbb" }}>Phase 1 · Athletic Hypertrophy</div>
           </div>
         </div>
-        <button onClick={onViewOther} style={{ background:"#f5f5f5", border:"1.5px solid #e8e8e8", borderRadius:7, color:"#888", fontSize:11, fontFamily:"inherit", fontWeight:700, padding:"5px 11px", cursor:"pointer" }}>
-          {readOnly ? `Back to ${otherUser}` : `View ${otherUser}`}
-        </button>
+        {otherUser && (
+          <button onClick={onViewOther} style={{ background:"#f5f5f5", border:"1.5px solid #e8e8e8", borderRadius:7, color:"#888", fontSize:11, fontFamily:"inherit", fontWeight:700, padding:"5px 11px", cursor:"pointer" }}>
+            {readOnly ? `Back to ${otherUser}` : `View ${otherUser}`}
+          </button>
+        )}
       </div>
 
       {/* Day tabs */}
       <div style={{ display:"flex", gap:6, padding:"9px 14px", overflowX:"auto", borderBottom:"1px solid #e8e8e8", background:"#fff", flexShrink:0 }}>
-        {DAY_KEYS.map(dk => (
+        {programDays.map(dk => (
           <button key={dk} onClick={() => setActiveDay(dk)} style={{ background:activeDay===dk?"#0a0a0a":"#f5f5f5", color:activeDay===dk?"#fff":"#888", border:`1.5px solid ${activeDay===dk?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, padding:"5px 12px", fontSize:11, fontFamily:"inherit", fontWeight:activeDay===dk?700:500, cursor:"pointer", whiteSpace:"nowrap" }}>{dk}</button>
         ))}
       </div>
 
       {/* Body */}
       <div style={{ flex:1, overflowY:"auto", padding:"14px 14px 16px", background:"#f5f5f5" }}>
+        {!curDay ? (
+          <div style={{ textAlign:"center", padding:"60px 20px", color:"#bbb" }}>
+            <div style={{ fontSize:13 }}>Loading workout...</div>
+          </div>
+        ) : <>
         <div style={{ marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>
             <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.08em", textTransform:"uppercase" }}>{curDay.subtitle}</div>
@@ -917,6 +932,7 @@ function WorkoutScreen({ user, readOnly, program, onBack, otherUser, onViewOther
             🏃 Cardio — {curDay.cardio}
           </div>
         )}
+        </>}
       </div>
 
       {/* Save button */}
@@ -933,7 +949,21 @@ function WorkoutScreen({ user, readOnly, program, onBack, otherUser, onViewOther
 
 // ── Settings Screen ─────────────────────────────────────────────────────────
 
-function SettingsScreen({ user, userSettings, onUpdate, onBack }) {
+function SettingsScreen({ user, userSettings, onUpdate, onBack, onChangeName }) {
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(user);
+
+  const handleSaveName = () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed || trimmed === user) { setEditingName(false); return; }
+    onChangeName(trimmed);
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem("stack_user_name");
+    window.location.reload();
+  };
+
   return (
     <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", minHeight:"100dvh", background:"#f5f5f5" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 16px", borderBottom:"1px solid #e8e8e8", background:"#fff" }}>
@@ -942,7 +972,22 @@ function SettingsScreen({ user, userSettings, onUpdate, onBack }) {
       </div>
       <div style={{ padding:16 }}>
         <div style={{ background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, padding:16, marginBottom:12 }}>
-          <div style={{ fontSize:15, fontWeight:800, color:"#0a0a0a", marginBottom:14 }}>{user}</div>
+          <div style={{ fontSize:10, color:"#bbb", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>Profile</div>
+          {editingName ? (
+            <div style={{ display:"flex", gap:8 }}>
+              <input value={nameInput} onChange={e=>setNameInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSaveName()} autoFocus style={{ ...inp, flex:1, fontSize:14 }} />
+              <button onClick={handleSaveName} style={{ padding:"7px 14px", background:"#0a0a0a", color:"#fff", border:"none", borderRadius:8, fontFamily:"inherit", fontSize:13, fontWeight:700, cursor:"pointer" }}>Save</button>
+              <button onClick={()=>{setEditingName(false);setNameInput(user);}} style={{ padding:"7px 10px", background:"none", border:"1.5px solid #e8e8e8", borderRadius:8, color:"#bbb", fontFamily:"inherit", fontSize:13, cursor:"pointer" }}>✕</button>
+            </div>
+          ) : (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ fontSize:15, fontWeight:800, color:"#0a0a0a" }}>{user}</div>
+              <button onClick={()=>setEditingName(true)} style={{ background:"none", border:"1.5px solid #e8e8e8", borderRadius:8, color:"#888", fontSize:12, fontFamily:"inherit", fontWeight:600, padding:"5px 11px", cursor:"pointer" }}>Change name</button>
+            </div>
+          )}
+        </div>
+
+        <div style={{ background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, padding:16, marginBottom:12 }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <div>
               <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>Show RIR selector</div>
@@ -953,6 +998,10 @@ function SettingsScreen({ user, userSettings, onUpdate, onBack }) {
             </div>
           </div>
         </div>
+
+        <button onClick={handleSignOut} style={{ display:"block", width:"100%", padding:"13px 16px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:12, color:"#bbb", fontSize:12, fontWeight:600, fontFamily:"inherit", cursor:"pointer", textAlign:"left" }}>
+          Sign out / switch user
+        </button>
       </div>
     </div>
   );
@@ -1101,15 +1150,19 @@ function AddModal({ onAdd, onClose }) {
 
 function EditorScreen({ programs, onSave, onBack, currentUser }) {
   const [scope, setScope] = useState("both");
-  const [activeDay, setActiveDay] = useState("Upper A");
-  const [prog, setProg] = useState(() => copy(programs[currentUser]));
+  const initProg = copy(programs[currentUser] || {});
+  const firstDay = Object.keys(initProg)[0] || null;
+  const [activeDay, setActiveDay] = useState(firstDay);
+  const [prog, setProg] = useState(() => initProg);
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dragId, setDragId] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
   const refs = useRef({});
-  const exs    = prog[activeDay].exercises;
+  const progDays = Object.keys(prog);
+  const curEditorDay = activeDay && prog[activeDay];
+  const exs    = curEditorDay?.exercises || [];
   const setExs = useCallback(n => setProg(p => ({...p, [activeDay]:{...p[activeDay], exercises:n}})), [activeDay]);
 
   useEffect(() => {
@@ -1163,11 +1216,17 @@ function EditorScreen({ programs, onSave, onBack, currentUser }) {
           </div>
         </div>
 
+        {progDays.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"48px 20px", color:"#bbb" }}>
+            <div style={{ fontSize:15, fontWeight:700, color:"#888", marginBottom:8 }}>No workout days yet</div>
+            <div style={{ fontSize:13 }}>Split builder coming soon — you'll be able to add and name your own workout days here.</div>
+          </div>
+        ) : <>
         <div style={{ display:"flex", gap:6, overflowX:"auto", marginBottom:12 }}>
-          {DAY_KEYS.map(dk => <button key={dk} onClick={()=>setActiveDay(dk)} style={{ background:activeDay===dk?"#0a0a0a":"#f5f5f5", color:activeDay===dk?"#fff":"#888", border:`1.5px solid ${activeDay===dk?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, padding:"5px 12px", fontSize:11, fontFamily:"inherit", fontWeight:activeDay===dk?700:500, cursor:"pointer", whiteSpace:"nowrap" }}>{dk}</button>)}
+          {progDays.map(dk => <button key={dk} onClick={()=>setActiveDay(dk)} style={{ background:activeDay===dk?"#0a0a0a":"#f5f5f5", color:activeDay===dk?"#fff":"#888", border:`1.5px solid ${activeDay===dk?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, padding:"5px 12px", fontSize:11, fontFamily:"inherit", fontWeight:activeDay===dk?700:500, cursor:"pointer", whiteSpace:"nowrap" }}>{dk}</button>)}
         </div>
 
-        <div style={{ fontSize:11, color:"#bbb", marginBottom:10, fontStyle:"italic" }}>{prog[activeDay].label}</div>
+        {curEditorDay?.label && <div style={{ fontSize:11, color:"#bbb", marginBottom:10, fontStyle:"italic" }}>{curEditorDay.label}</div>}
 
         {display.map(ex => (
           <EditorExRow key={ex.id} ex={ex}
@@ -1179,6 +1238,7 @@ function EditorScreen({ programs, onSave, onBack, currentUser }) {
           />
         ))}
         <button onClick={()=>setShowAdd(true)} style={{ width:"100%", padding:11, background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:10, color:"#bbb", fontSize:12, fontFamily:"inherit", fontWeight:600, cursor:"pointer", marginTop:4 }}>+ Add exercise</button>
+        </>}
       </div>
 
       <div style={{ borderTop:"1px solid #e8e8e8", padding:"12px 14px 16px", background:"#fff", flexShrink:0 }}>
@@ -1251,21 +1311,30 @@ export default function App() {
 
   // Wire Anonymous Auth — runs once on mount
   useEffect(() => {
+    // Resolve instantly from localStorage — no network wait for returning users
+    const cached = localStorage.getItem("stack_user_name");
+    if (cached) {
+      setUser(cached);
+      setScreen("dayselect");
+    }
+
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUid(firebaseUser.uid);
-        const profile = await fbLoadUserProfile(firebaseUser.uid);
-        if (profile?.name) {
-          setUser(profile.name);
-          setScreen("dayselect");
-        } else {
-          setScreen("onboard");
+        if (!cached) {
+          const profile = await fbLoadUserProfile(firebaseUser.uid);
+          if (profile?.name) {
+            setUser(profile.name);
+            setScreen("dayselect");
+          } else {
+            setScreen("onboard");
+          }
         }
       } else {
-        signInAnonymously(auth).catch(() => setScreen("onboard"));
+        signInAnonymously(auth).catch(() => { if (!cached) setScreen("onboard"); });
       }
     });
-    // Fallback: if auth hangs for 6 seconds, show onboard anyway
+    // Fallback: if auth hangs for 6 seconds and still no name, show onboard
     const timeout = setTimeout(() => setScreen(s => s === "loading" ? "onboard" : s), 6000);
     return () => { unsub(); clearTimeout(timeout); };
   }, []);
@@ -1283,6 +1352,12 @@ export default function App() {
   }, [currentUser]);
 
   const handleOnboard = async (name) => {
+    await fbSaveUserProfile(uid, name);
+    setUser(name);
+    setScreen("dayselect");
+  };
+
+  const handleChangeName = async (name) => {
     await fbSaveUserProfile(uid, name);
     setUser(name);
     setScreen("dayselect");
@@ -1311,7 +1386,7 @@ export default function App() {
   if (screen === "settings") return (
     <div style={{ height:"100dvh" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
-      <SettingsScreen user={user} userSettings={userSettings} onUpdate={handleUpdateSetting} onBack={()=>setScreen("dayselect")} />
+      <SettingsScreen user={user} userSettings={userSettings} onUpdate={handleUpdateSetting} onBack={()=>setScreen("dayselect")} onChangeName={handleChangeName} />
     </div>
   );
 
