@@ -1295,35 +1295,84 @@ function EditorScreen({ split, onSave, onBack, currentUser }) {
 
 // ── Split Picker Sheet ──────────────────────────────────────────────────────
 
-function SplitPickerSheet({ splits, activeSplitId, onSelect, onCreate, onClose }) {
-  const [creating, setCreating] = useState(false);
+// ── Home Screen ──────────────────────────────────────────────────────────────
+
+function HomeScreen({ user, userDoc, onSelectSplit, onCreateSplit, onSettings, onPerformance }) {
+  const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
-  const submit = () => { const n = newName.trim(); if (n) { onCreate(n); setCreating(false); setNewName(""); } };
+
+  const submit = () => {
+    const n = newName.trim();
+    if (!n) return;
+    onCreateSplit(n);
+    setShowNew(false);
+    setNewName("");
+  };
+
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:100, display:"flex", alignItems:"flex-end" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ width:"100%", background:"#fff", borderRadius:"18px 18px 0 0", paddingBottom:40, maxHeight:"72vh", overflowY:"auto" }}>
-        <div style={{ padding:"18px 20px 14px", borderBottom:"1px solid #f0f0f0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ fontSize:13, fontWeight:800, color:"#0a0a0a", letterSpacing:"0.04em" }}>YOUR SPLITS</div>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>×</button>
+    <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", padding:"52px 20px 40px" }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
+      <div style={{ maxWidth:340, margin:"0 auto" }}>
+
+        {/* Header */}
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:40 }}>
+          <div>
+            <div style={{ fontSize:44, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em", lineHeight:1, marginBottom:8 }}>STACK</div>
+            <div style={{ fontSize:15, fontWeight:700, color:"#888" }}>Hey, {user}</div>
+          </div>
+          <button onClick={onSettings} style={{ background:"none", border:"none", color:"#bbb", fontSize:22, cursor:"pointer", padding:"6px 0 0 0" }}>⚙️</button>
         </div>
-        {splits.map(s => (
-          <button key={s.id} onClick={()=>onSelect(s.id)} style={{ display:"flex", alignItems:"center", width:"100%", padding:"15px 20px", background:"none", border:"none", borderBottom:"1px solid #f5f5f5", textAlign:"left", fontFamily:"inherit", cursor:"pointer" }}>
-            <div style={{ width:18, height:18, borderRadius:"50%", border:`2.5px solid ${s.id===activeSplitId?"#0a0a0a":"#d0d0d0"}`, background:s.id===activeSplitId?"#0a0a0a":"transparent", marginRight:14, flexShrink:0 }} />
-            <div>
-              <div style={{ fontSize:14, fontWeight:700, color:"#0a0a0a" }}>{s.name}</div>
-              <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>{s.days.length} day{s.days.length!==1?"s":""}</div>
-            </div>
-            {s.id===activeSplitId && <div style={{ marginLeft:"auto", fontSize:11, fontWeight:700, color:"#0a0a0a" }}>Active</div>}
-          </button>
-        ))}
-        {creating ? (
-          <div style={{ display:"flex", gap:8, padding:"14px 20px" }}>
-            <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="Split name (e.g. Powerlifting)" autoFocus style={{ ...inp, flex:1, fontSize:14 }} />
-            <button onClick={submit} style={{ padding:"8px 14px", background:"#0a0a0a", color:"#fff", border:"none", borderRadius:9, fontFamily:"inherit", fontSize:13, fontWeight:700, cursor:"pointer" }}>Create</button>
+
+        {/* Splits label */}
+        <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:12 }}>Your splits</div>
+
+        {/* Split cards */}
+        {userDoc.splits.length === 0 && !showNew && (
+          <div style={{ padding:"28px 0 8px", color:"#bbb", fontSize:13, fontWeight:600 }}>No splits yet — create one below</div>
+        )}
+        {userDoc.splits.map(split => {
+          const isActive = split.id === userDoc.activeSplitId;
+          return (
+            <button key={split.id} onClick={() => onSelectSplit(split.id)}
+              style={{ display:"block", width:"100%", marginBottom:10, padding:"18px 20px",
+                background: isActive ? "#0a0a0a" : "#fff",
+                border: isActive ? "1.5px solid #0a0a0a" : "1.5px solid #e8e8e8",
+                borderRadius:16, cursor:"pointer", textAlign:"left", fontFamily:"inherit",
+                boxShadow: isActive ? "0 4px 16px rgba(0,0,0,0.15)" : "none" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div style={{ fontSize:16, fontWeight:900, color: isActive ? "#fff" : "#0a0a0a", letterSpacing:"-0.01em" }}>{split.name}</div>
+                {isActive && <div style={{ fontSize:10, fontWeight:800, color:"#555", letterSpacing:"0.1em" }}>ACTIVE</div>}
+              </div>
+              <div style={{ fontSize:12, fontWeight:600, color: isActive ? "#666" : "#bbb", marginTop:5 }}>
+                {split.days.length} {split.days.length === 1 ? "day" : "days"}
+              </div>
+            </button>
+          );
+        })}
+
+        {/* Create new split */}
+        {showNew ? (
+          <div style={{ marginBottom:10, padding:"16px 18px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:16 }}>
+            <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") submit(); if (e.key === "Escape") { setShowNew(false); setNewName(""); } }}
+              placeholder="Name your split..."
+              style={{ width:"100%", border:"none", outline:"none", fontSize:15, fontWeight:700, fontFamily:"inherit", background:"transparent", color:"#0a0a0a" }} />
+            <div style={{ fontSize:11, color:"#bbb", marginTop:6 }}>Enter to create · Esc to cancel</div>
           </div>
         ) : (
-          <button onClick={()=>setCreating(true)} style={{ display:"block", width:"100%", padding:"16px 20px", background:"none", border:"none", textAlign:"left", fontFamily:"inherit", cursor:"pointer", color:"#ea580c", fontSize:14, fontWeight:700 }}>+ Create new split</button>
+          <button onClick={() => setShowNew(true)}
+            style={{ display:"block", width:"100%", marginBottom:10, padding:"16px 18px", background:"transparent", border:"1.5px dashed #d8d8d8", borderRadius:16, cursor:"pointer", textAlign:"left", fontFamily:"inherit", color:"#bbb", fontSize:14, fontWeight:700 }}>
+            + New split
+          </button>
         )}
+
+        {/* Performance */}
+        <button onClick={onPerformance}
+          style={{ display:"block", width:"100%", marginTop:16, padding:"16px 18px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:16, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+          <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>📊 Performance</div>
+          <div style={{ fontSize:12, color:"#bbb", marginTop:3 }}>PR board · 1RM calculator</div>
+        </button>
+
       </div>
     </div>
   );
@@ -1331,8 +1380,7 @@ function SplitPickerSheet({ splits, activeSplitId, onSelect, onCreate, onClose }
 
 // ── Day Select Screen ────────────────────────────────────────────────────────
 
-function DaySelectScreen({ user, userDoc, activeSplit, activeDays, activeProgram, onSelectDay, onSettings, onPerformance, onEditor, onSwitchSplit, onCreateSplit, onReorderDays }) {
-  const [showPicker, setShowPicker] = useState(false);
+function DaySelectScreen({ activeSplit, activeDays, activeProgram, onSelectDay, onEditor, onReorderDays, onBack }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
   const dayRefs = useRef({});
@@ -1368,34 +1416,30 @@ function DaySelectScreen({ user, userDoc, activeSplit, activeDays, activeProgram
   })() : activeDays;
 
   return (
-    <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", padding:"36px 20px" }}>
+    <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", padding:"48px 20px 40px" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
       <div style={{ maxWidth:340, margin:"0 auto" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
-          <div>
-            <div style={{ fontSize:19, fontWeight:900, color:"#0a0a0a" }}>{user}</div>
-            <div style={{ fontSize:11, color:"#bbb" }}>Select today's workout</div>
-          </div>
-          <button onClick={onSettings} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>⚙️</button>
+
+        {/* Back */}
+        <button onClick={onBack} style={{ background:"none", border:"none", color:"#888", fontSize:13, fontWeight:800, cursor:"pointer", padding:"0 0 28px 0", fontFamily:"inherit", letterSpacing:"0.06em", display:"block" }}>← STACK</button>
+
+        {/* Split title */}
+        <div style={{ marginBottom:28 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>Today's workout</div>
+          <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.02em", lineHeight:1.1 }}>{activeSplit?.name || "No split selected"}</div>
         </div>
 
-        <button onClick={()=>setShowPicker(true)} style={{ display:"block", width:"100%", marginBottom:20, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
-          <div style={{ fontSize:10, color:"#bbb", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:4 }}>Active split</div>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <div style={{ fontSize:16, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.02em" }}>{activeSplit?.name || "No split selected"}</div>
-            <div style={{ fontSize:14, color:"#bbb" }}>▾</div>
-          </div>
-        </button>
-
-        {activeDays.length > 0 ? displayDays.map((dk, displayIdx) => {
+        {/* Day cards */}
+        {activeDays.length > 0 ? displayDays.map(dk => {
           const origIdx = activeDays.indexOf(dk);
           const isDragging = dragIdx === origIdx;
           return (
             <div key={dk} ref={el => dayRefs.current[origIdx] = el}
-              style={{ display:"flex", alignItems:"center", marginBottom:10, opacity:isDragging?0.4:1 }}>
-              <div onMouseDown={()=>setDragIdx(origIdx)} onTouchStart={()=>setDragIdx(origIdx)}
+              style={{ display:"flex", alignItems:"center", marginBottom:10, opacity:isDragging ? 0.4 : 1 }}>
+              <div onMouseDown={() => setDragIdx(origIdx)} onTouchStart={() => setDragIdx(origIdx)}
                 style={{ cursor:"grab", color:"#ccc", fontSize:18, padding:"0 10px 0 2px", touchAction:"none", userSelect:"none", flexShrink:0 }}>⠿</div>
-              <button onClick={()=>onSelectDay(dk)} style={{ flex:1, padding:"13px 16px", background:"#fff", border:`1.5px solid ${overIdx===origIdx&&dragIdx!==origIdx?"#888":"#e8e8e8"}`, borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+              <button onClick={() => onSelectDay(dk)}
+                style={{ flex:1, padding:"14px 16px", background:"#fff", border:`1.5px solid ${overIdx === origIdx && dragIdx !== origIdx ? "#888" : "#e8e8e8"}`, borderRadius:14, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
                 <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>{dk}</div>
                 <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>
                   {DAY_META[dk] ? `${DAY_META[dk].day} · ${DAY_META[dk].sub}` : (activeProgram[dk]?.subtitle || "")}
@@ -1404,28 +1448,18 @@ function DaySelectScreen({ user, userDoc, activeSplit, activeDays, activeProgram
             </div>
           );
         }) : (
-          <div style={{ textAlign:"center", padding:"40px 20px", color:"#bbb" }}>
+          <div style={{ textAlign:"center", padding:"48px 20px", color:"#bbb" }}>
             <div style={{ fontSize:15, fontWeight:700, color:"#888", marginBottom:8 }}>No workout days yet</div>
             <div style={{ fontSize:13 }}>Tap "Edit program" to add days to this split.</div>
           </div>
         )}
 
-        <button onClick={onPerformance} style={{ display:"block", width:"100%", marginTop:10, padding:"13px 16px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
-          <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>📊 Performance</div>
-          <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>PR board · 1RM calculator</div>
+        <button onClick={onEditor}
+          style={{ display:"block", width:"100%", marginTop:10, padding:"13px 16px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:14, cursor:"pointer", textAlign:"left", fontFamily:"inherit", color:"#bbb", fontSize:13, fontWeight:700 }}>
+          ✏️  Edit program
         </button>
-        <button onClick={onEditor} style={{ display:"block", width:"100%", marginTop:10, padding:"11px 16px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit", color:"#bbb", fontSize:12, fontWeight:600 }}>✏️  Edit program</button>
-      </div>
 
-      {showPicker && (
-        <SplitPickerSheet
-          splits={userDoc.splits}
-          activeSplitId={userDoc.activeSplitId}
-          onSelect={id=>{ onSwitchSplit(id); setShowPicker(false); }}
-          onCreate={name=>{ onCreateSplit(name); setShowPicker(false); }}
-          onClose={()=>setShowPicker(false)}
-        />
-      )}
+      </div>
     </div>
   );
 }
@@ -1496,13 +1530,13 @@ export default function App() {
   // Anonymous Auth
   useEffect(() => {
     const cached = localStorage.getItem("stack_user_name");
-    if (cached) { setUser(cached); setScreen("dayselect"); }
+    if (cached) { setUser(cached); setScreen("home"); }
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUid(firebaseUser.uid);
         if (!cached) {
           const profile = await fbLoadUserProfile(firebaseUser.uid);
-          if (profile?.name) { setUser(profile.name); setScreen("dayselect"); }
+          if (profile?.name) { setUser(profile.name); setScreen("home"); }
           else setScreen("onboard");
         }
       } else {
@@ -1527,12 +1561,12 @@ export default function App() {
 
   const handleOnboard = async (name) => {
     await fbSaveUserProfile(uid, name);
-    setUser(name); setScreen("dayselect");
+    setUser(name); setScreen("home");
   };
 
   const handleChangeName = async (name) => {
     await fbSaveUserProfile(uid, name);
-    setUser(name); setScreen("dayselect");
+    setUser(name); setScreen("home");
   };
 
   const handleSwitchSplit = (splitId) => {
@@ -1558,19 +1592,25 @@ export default function App() {
 
   // Called by EditorScreen when saving — updates the split for each target user
   const handleSaveSplit = async (updatedSplit, targets) => {
+    // Fetch any target user's data that isn't in local state yet — prevents overwriting their Firestore doc
+    const freshData = {};
     for (const targetUser of targets) {
-      setSplitsData(prev => {
-        const ud = prev[targetUser] || { activeSplitId: updatedSplit.id, splits: [] };
-        const exists = ud.splits.some(s => s.id === (ud.activeSplitId || updatedSplit.id));
-        const splits = ud.splits.length === 0
-          ? [{ ...updatedSplit, id: ud.activeSplitId || updatedSplit.id }]
-          : ud.splits.map((s, i) => (targetUser === user ? s.id === ud.activeSplitId : i === 0)
-              ? { ...s, days: updatedSplit.days, program: updatedSplit.program } : s);
-        const activeSplitId = ud.activeSplitId || (exists ? ud.activeSplitId : updatedSplit.id);
-        const newDoc = { activeSplitId: activeSplitId || updatedSplit.id, splits };
-        fbSaveSplits(targetUser, newDoc);
-        return { ...prev, [targetUser]: newDoc };
-      });
+      if (!splitsData[targetUser]) {
+        freshData[targetUser] = await fbLoadSplits(targetUser, !USERS.includes(targetUser));
+      }
+    }
+    const merged = { ...splitsData, ...freshData };
+    if (Object.keys(freshData).length > 0) setSplitsData(prev => ({ ...prev, ...freshData }));
+
+    for (const targetUser of targets) {
+      const ud = merged[targetUser] || { activeSplitId: updatedSplit.id, splits: [] };
+      const splits = ud.splits.length === 0
+        ? [{ ...updatedSplit, id: ud.activeSplitId || updatedSplit.id }]
+        : ud.splits.map((s, i) => (targetUser === user ? s.id === ud.activeSplitId : i === 0)
+            ? { ...s, days: updatedSplit.days, program: updatedSplit.program } : s);
+      const newDoc = { activeSplitId: ud.activeSplitId || updatedSplit.id, splits };
+      await fbSaveSplits(targetUser, newDoc);
+      setSplitsData(prev => ({ ...prev, [targetUser]: newDoc }));
     }
   };
 
@@ -1602,31 +1642,40 @@ export default function App() {
 
   if (screen === "onboard") return <OnboardScreen onSave={handleOnboard} />;
 
+  if (screen === "home") return (
+    <div style={{ height:"100dvh" }}>{font}
+      <HomeScreen
+        user={user} userDoc={userDoc}
+        onSelectSplit={id => { handleSwitchSplit(id); setScreen("dayselect"); }}
+        onCreateSplit={name => { handleCreateSplit(name); setScreen("dayselect"); }}
+        onSettings={() => setScreen("settings")}
+        onPerformance={() => setScreen("performance")}
+      />
+    </div>
+  );
+
   if (screen === "settings") return (
     <div style={{ height:"100dvh" }}>{font}
-      <SettingsScreen user={user} userSettings={userSettings} onUpdate={handleUpdateSetting} onBack={()=>setScreen("dayselect")} onChangeName={handleChangeName} />
+      <SettingsScreen user={user} userSettings={userSettings} onUpdate={handleUpdateSetting} onBack={()=>setScreen("home")} onChangeName={handleChangeName} />
     </div>
   );
 
   if (screen === "dayselect") return (
     <div style={{ height:"100dvh" }}>{font}
       <DaySelectScreen
-        user={user} userDoc={userDoc} activeSplit={activeSplit}
+        activeSplit={activeSplit}
         activeDays={activeDays} activeProgram={activeProgram}
         onSelectDay={dk => { setActiveDay(dk); setScreen("workout"); }}
-        onSettings={() => setScreen("settings")}
-        onPerformance={() => setScreen("performance")}
         onEditor={() => setScreen("editor")}
-        onSwitchSplit={handleSwitchSplit}
-        onCreateSplit={handleCreateSplit}
         onReorderDays={handleReorderDays}
+        onBack={() => setScreen("home")}
       />
     </div>
   );
 
   if (screen === "performance") return (
     <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>{font}
-      <PerformanceScreen user={user} program={activeProgram} onBack={()=>setScreen("dayselect")} />
+      <PerformanceScreen user={user} program={activeProgram} onBack={()=>setScreen("home")} />
     </div>
   );
 
