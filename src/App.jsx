@@ -1537,13 +1537,13 @@ export default function App() {
   // Anonymous Auth
   useEffect(() => {
     const cached = localStorage.getItem("stack_user_name");
-    if (cached) { setUser(cached); setScreen("home"); }
+    if (cached) { setUser(canonicalName(cached)); setScreen("home"); }
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUid(firebaseUser.uid);
         if (!cached) {
           const profile = await fbLoadUserProfile(firebaseUser.uid);
-          if (profile?.name) { setUser(profile.name); setScreen("home"); }
+          if (profile?.name) { setUser(canonicalName(profile.name)); setScreen("home"); }
           else setScreen("onboard");
         }
       } else {
@@ -1558,9 +1558,8 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     setLoadingSplits(true);
-    const key = canonicalName(currentUser);
-    const isNewUser = !USERS.some(u => u.toLowerCase() === currentUser.toLowerCase());
-    Promise.all([fbLoadSplits(key, isNewUser), fbLoadSettings(key)]).then(([sd, s]) => {
+    const isNewUser = !USERS.includes(currentUser);
+    Promise.all([fbLoadSplits(currentUser, isNewUser), fbLoadSettings(currentUser)]).then(([sd, s]) => {
       setSplitsData(prev => ({ ...prev, [currentUser]: sd }));
       setUserSettings(prev => ({ ...prev, [currentUser]: s }));
       setLoadingSplits(false);
@@ -1568,13 +1567,15 @@ export default function App() {
   }, [currentUser]);
 
   const handleOnboard = async (name) => {
-    await fbSaveUserProfile(uid, name);
-    setUser(name); setScreen("home");
+    const normalized = canonicalName(name);
+    await fbSaveUserProfile(uid, normalized);
+    setUser(normalized); setScreen("home");
   };
 
   const handleChangeName = async (name) => {
-    await fbSaveUserProfile(uid, name);
-    setUser(name); setScreen("home");
+    const normalized = canonicalName(name);
+    await fbSaveUserProfile(uid, normalized);
+    setUser(normalized); setScreen("home");
   };
 
   const handleSwitchSplit = (splitId) => {
