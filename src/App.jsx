@@ -1297,7 +1297,7 @@ function EditorScreen({ split, onSave, onBack, currentUser }) {
 
 // ── Home Screen ──────────────────────────────────────────────────────────────
 
-function HomeScreen({ user, userDoc, onSelectSplit, onCreateSplit, onSettings, onPerformance }) {
+function HomeScreen({ user, userDoc, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance }) {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
 
@@ -1327,9 +1327,11 @@ function HomeScreen({ user, userDoc, onSelectSplit, onCreateSplit, onSettings, o
         <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:12 }}>Your splits</div>
 
         {/* Split cards */}
-        {userDoc.splits.length === 0 && !showNew && (
+        {loadingSplits ? (
+          <div style={{ padding:"28px 0 8px", color:"#bbb", fontSize:13, fontWeight:600 }}>Loading...</div>
+        ) : userDoc.splits.length === 0 && !showNew ? (
           <div style={{ padding:"28px 0 8px", color:"#bbb", fontSize:13, fontWeight:600 }}>No splits yet — create one below</div>
-        )}
+        ) : null}
         {userDoc.splits.map(split => {
           const isActive = split.id === userDoc.activeSplitId;
           return (
@@ -1645,7 +1647,7 @@ export default function App() {
   if (screen === "home") return (
     <div style={{ height:"100dvh" }}>{font}
       <HomeScreen
-        user={user} userDoc={userDoc}
+        user={user} userDoc={userDoc} loadingSplits={loadingSplits}
         onSelectSplit={id => { handleSwitchSplit(id); setScreen("dayselect"); }}
         onCreateSplit={name => { handleCreateSplit(name); setScreen("dayselect"); }}
         onSettings={() => setScreen("settings")}
