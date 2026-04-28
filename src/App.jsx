@@ -197,11 +197,12 @@ async function fbSaveSessions(user, dayKey, sessions) {
 async function fbLoadDraft(user, dayKey) {
   try {
     const snap = await getDoc(doc(db, "drafts", `${user}_${dayKey}`));
-    return snap.exists() ? (snap.data().draft || {}) : {};
-  } catch { return {}; }
+    if (!snap.exists()) return { draft: {}, savedAt: null };
+    return { draft: snap.data().draft || {}, savedAt: snap.data().savedAt || null };
+  } catch { return { draft: {}, savedAt: null }; }
 }
 async function fbSaveDraft(user, dayKey, draft) {
-  try { await setDoc(doc(db, "drafts", `${user}_${dayKey}`), { draft }); } catch(e) { console.error(e); }
+  try { await setDoc(doc(db, "drafts", `${user}_${dayKey}`), { draft, savedAt: Date.now() }); } catch(e) { console.error(e); }
 }
 async function fbClearDraft(user, dayKey) {
   try { await setDoc(doc(db, "drafts", `${user}_${dayKey}`), { draft: {} }); } catch(e) { console.error(e); }
@@ -818,7 +819,7 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
 
 // ── Workout Screen ──────────────────────────────────────────────────────────
 
-function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onViewOther, initDay, showRIR }) {
+function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onViewOther, initDay, showRIR, autoLog, autoLogHours }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -826,6 +827,7 @@ function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onVie
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
+  const [autoLoggedMsg, setAutoLoggedMsg] = useState("");
   const [analysisEx, setAnalysisEx] = useState(null);
   const autoSaveTimer = useRef(null);
   const programDays = days?.length ? days : Object.keys(program);
@@ -834,9 +836,24 @@ function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onVie
 
   useEffect(() => {
     setLoading(true); setCurrent({});
-    Promise.all([fbLoadSessions(user, activeDay), fbLoadDraft(user, activeDay)]).then(([s, draft]) => {
+    Promise.all([fbLoadSessions(user, activeDay), fbLoadDraft(user, activeDay)]).then(([s, { draft, savedAt }]) => {
       setSessions(s);
-      if (Object.keys(draft).length > 0) setCurrent(draft);
+      const hasMeaningfulData = Object.values(draft).some(e => e?.sets?.some(s => s.weight || s.reps || s.laps));
+      const thresholdMs = (autoLogHours || 4) * 3600000;
+      const shouldAutoLog = !readOnly && autoLog !== false && savedAt && hasMeaningfulData && (Date.now() - savedAt) > thresholdMs;
+      if (shouldAutoLog) {
+        const d = new Date(savedAt);
+        const dateStr = `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
+        const nextSessions = [...s, { date: dateStr, entries: draft }];
+        fbSaveSessions(user, activeDay, nextSessions);
+        fbClearDraft(user, activeDay);
+        setSessions(nextSessions);
+        const hoursAgo = Math.round((Date.now() - savedAt) / 3600000);
+        setAutoLoggedMsg(`✓ Auto-logged ${activeDay} from ${hoursAgo}h ago`);
+        setTimeout(() => setAutoLoggedMsg(""), 5000);
+      } else {
+        if (hasMeaningfulData) setCurrent(draft);
+      }
       setLoading(false);
     });
   }, [user, activeDay]);
@@ -923,6 +940,7 @@ function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onVie
             <div style={{ fontSize:11, color:"#bbb" }}>Today: <span style={{ color:"#888", fontWeight:600 }}>{TODAYFMT()}</span></div>
           </div>
           {autoSaved && <div style={{ fontSize:10, color:"#16a34a", marginTop:4 }}>● Draft saved</div>}
+          {autoLoggedMsg && <div style={{ fontSize:11, color:"#16a34a", fontWeight:700, marginTop:6, padding:"6px 10px", background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8 }}>{autoLoggedMsg}</div>}
         </div>
 
         {loading ? (
@@ -1009,6 +1027,34 @@ function SettingsScreen({ user, userSettings, onUpdate, onBack, onChangeName }) 
               <div style={{ position:"absolute", top:3, left:userSettings[user]?.showRIR?22:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
             </div>
           </div>
+        </div>
+
+        <div style={{ background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, padding:16, marginBottom:12 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>Auto-log workouts</div>
+              <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>Log session automatically after inactivity</div>
+            </div>
+            <div onClick={() => onUpdate(user, "autoLog", userSettings[user]?.autoLog === false ? true : false)} style={{ width:44, height:24, borderRadius:12, background:userSettings[user]?.autoLog!==false?"#16a34a":"#e8e8e8", position:"relative", cursor:"pointer", transition:"background .2s" }}>
+              <div style={{ position:"absolute", top:3, left:userSettings[user]?.autoLog!==false?22:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
+            </div>
+          </div>
+          {userSettings[user]?.autoLog !== false && (
+            <div style={{ marginTop:14 }}>
+              <div style={{ fontSize:11, color:"#bbb", marginBottom:8, fontWeight:600 }}>Log after</div>
+              <div style={{ display:"flex", gap:8 }}>
+                {[2, 4, 8, 12].map(h => {
+                  const active = (userSettings[user]?.autoLogHours || 4) === h;
+                  return (
+                    <button key={h} onClick={() => onUpdate(user, "autoLogHours", h)}
+                      style={{ flex:1, padding:"7px 0", background:active?"#0a0a0a":"#f5f5f5", color:active?"#fff":"#888", border:`1.5px solid ${active?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, fontSize:12, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>
+                      {h}h
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <button onClick={handleSignOut} style={{ display:"block", width:"100%", padding:"13px 16px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:12, color:"#bbb", fontSize:12, fontWeight:600, fontFamily:"inherit", cursor:"pointer", textAlign:"left" }}>
@@ -1706,6 +1752,8 @@ export default function App() {
           program={activeProgram}
           days={activeDays}
           showRIR={userSettings[currentUser]?.showRIR !== false}
+          autoLog={userSettings[currentUser]?.autoLog !== false}
+          autoLogHours={userSettings[currentUser]?.autoLogHours || 4}
           onBack={() => { setScreen("dayselect"); setViewingUser(null); }}
           otherUser={otherUser}
           onViewOther={() => isReadOnly ? setViewingUser(null) : setViewingUser(otherUser)}
