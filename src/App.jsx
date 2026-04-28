@@ -4,6 +4,8 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 
 const USERS = ["Josh", "AJ"];
+// Returns the canonical USERS name if there's a case-insensitive match, otherwise returns name as-is
+const canonicalName = n => USERS.find(u => u.toLowerCase() === n?.toLowerCase()) || n;
 const DAY_KEYS = ["Upper A", "Lower A", "Upper B", "Lower B", "Accessory"];
 const TRACK = [
   { key: "reps",     label: "Reps",     ph: "e.g. 10" },
@@ -1493,6 +1495,9 @@ function OnboardScreen({ onSave }) {
           onKeyDown={e => e.key === "Enter" && handleSave()}
           placeholder="Your name"
           autoFocus
+          autoCorrect="off"
+          autoCapitalize="words"
+          spellCheck={false}
           style={{ ...inp, fontSize:16, padding:"12px 14px", marginBottom:12 }}
         />
         <button
@@ -1553,8 +1558,9 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     setLoadingSplits(true);
-    const isNewUser = !USERS.includes(currentUser);
-    Promise.all([fbLoadSplits(currentUser, isNewUser), fbLoadSettings(currentUser)]).then(([sd, s]) => {
+    const key = canonicalName(currentUser);
+    const isNewUser = !USERS.some(u => u.toLowerCase() === currentUser.toLowerCase());
+    Promise.all([fbLoadSplits(key, isNewUser), fbLoadSettings(key)]).then(([sd, s]) => {
       setSplitsData(prev => ({ ...prev, [currentUser]: sd }));
       setUserSettings(prev => ({ ...prev, [currentUser]: s }));
       setLoadingSplits(false);
