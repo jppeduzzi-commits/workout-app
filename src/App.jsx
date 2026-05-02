@@ -689,8 +689,9 @@ function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDelete, showRIR, su
               </select>
             )}
 
-            <div style={{ fontSize:11, textAlign:"right", paddingLeft:2, color:s._prevIsSub?"#f59e0b":"#bbb", fontWeight:s._prevIsSub?700:400 }}>
+            <div style={{ fontSize:11, textAlign:"right", paddingLeft:2, color:s._prevIsSub?"#f59e0b":"#bbb", fontWeight:s._prevIsSub?700:400, lineHeight:1.3 }}>
               {(!s._prev || s._prev==="—") ? "—" : s._prevIsSub ? `↻ ${s._prev}` : s._prev}
+              {s._prevRir != null && <div style={{ fontSize:9, color:"#d1d5db", fontWeight:400 }}>@{s._prevRir === 5 ? "5+" : s._prevRir}</div>}
             </div>
           </div>
         </div>
@@ -743,14 +744,15 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
 
   // Enrich sets with previous values — superset gets _prevA and _prevB separately
   const enrichedSets = sets.map((s, i) => {
-    if (!prevSets[i]) return { ...s, _prev:"—", _prevA:"—", _prevB:"—", _prevIsSub:false };
+    if (!prevSets[i]) return { ...s, _prev:"—", _prevA:"—", _prevB:"—", _prevIsSub:false, _prevRir:null };
     if (ex.isSuperset) {
       const pA = prevSets[i].bw  ? `BW×${prevSets[i].perf||"—"}`  : `${prevSets[i].weight||"—"}×${prevSets[i].perf||"—"}`;
       const pB = prevSets[i].bw2 ? `BW×${prevSets[i].perf2||"—"}` : `${prevSets[i].weight2||"—"}×${prevSets[i].perf2||"—"}`;
-      return { ...s, _prev:pA, _prevA:pA, _prevB:pB, _prevIsSub:false };
+      return { ...s, _prev:pA, _prevA:pA, _prevB:pB, _prevIsSub:false, _prevRir:null };
     }
     const raw = prevSets[i].bw ? `BW×${prevSets[i].perf||"—"}` : `${prevSets[i].weight||"—"}×${prevSets[i].perf||"—"}`;
-    return { ...s, _prev:raw, _prevIsSub:prevIsSub };
+    const prevRir = prevSets[i].rir != null && prevSets[i].rir !== "" ? prevSets[i].rir : null;
+    return { ...s, _prev:raw, _prevIsSub:prevIsSub, _prevRir:prevRir };
   });
 
   const showAnalysisBtn = ((!ex.exType || ex.exType === "compound") || ex.exType === "isolation" || ex.exType === "carries" || ex.exType === "plyometric") && track.key === "reps";
@@ -918,6 +920,12 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
             </button>
           )}
 
+          {prevEntry?.note && (
+            <div style={{ background:"#f9fafb", border:"1px solid #eeeeee", borderRadius:8, padding:"9px 11px", marginBottom:8 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"#aaa", letterSpacing:"0.07em", marginBottom:4 }}>LAST SESSION NOTE</div>
+              <div style={{ fontSize:12, color:"#555", lineHeight:1.55, fontStyle:"italic" }}>{prevEntry.note}</div>
+            </div>
+          )}
           {!readOnly && (
             <textarea value={entry?.note||""} onChange={e=>onChange({...entry, sets, note:e.target.value})} placeholder="Session note..." rows={2} style={{ ...inp, resize:"none", fontFamily:"inherit", fontSize:12 }} />
           )}
