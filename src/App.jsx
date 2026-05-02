@@ -110,43 +110,43 @@ const PCTS = [95, 90, 85, 80, 75, 70, 65];
 
 const DEFAULT_PROGRAM = {
   "Upper A": { label: "Upper A", subtitle: "Chest Priority", cardio: "15–20 min", goal: "hypertrophy", exercises: [
-    { id:"UA1", name:"Incline Smith Machine Press",         sets:2, hasDrop:false, trackingType:"reps", target:"8–12",       notes:"Lead movement, chest priority",      exType:"compound" },
-    { id:"UA2", name:"Single Arm Lat Pulldown",             sets:2, hasDrop:false, trackingType:"reps", target:"10–12 ea",   notes:"Diagonal pull, controlled",          exType:"compound" },
-    { id:"UA3", name:"DB Flat Press",                       sets:2, hasDrop:false, trackingType:"reps", target:"8–12",       notes:"Wrist neutral, modify if needed",    exType:"compound" },
-    { id:"UA4", name:"Bent Over Barbell Row",               sets:2, hasDrop:false, trackingType:"reps", target:"8–12",       notes:"Standard mid back path",             exType:"compound" },
-    { id:"UA5", name:"Cable Lateral Raise",                 sets:2, hasDrop:true,  trackingType:"reps", target:"12–15 ea",   notes:"Single arm, 50% drop on set 2",      exType:"isolation" },
-    { id:"UA6", name:"Straight Bar Cable Tricep Pushdown",  sets:2, hasDrop:true,  trackingType:"reps", target:"10–15",      notes:"50% drop on set 2",                  exType:"isolation" },
-    { id:"UA7", name:"Standing DB Bicep Curl",              sets:3, hasDrop:false, trackingType:"reps", target:"10–12",      notes:"Stay pain free",                     exType:"isolation" },
+    { id:"UA1", name:"Incline Smith Machine Press",         sets:2, hasDrop:false, trackingType:"reps", target:"8–12",       notes:"",      exType:"compound" },
+    { id:"UA2", name:"Single Arm Lat Pulldown",             sets:2, hasDrop:false, trackingType:"reps", target:"10–12 ea",   notes:"",  exType:"compound" },
+    { id:"UA3", name:"DB Flat Press",                       sets:2, hasDrop:false, trackingType:"reps", target:"8–12",       notes:"",  exType:"compound" },
+    { id:"UA4", name:"Bent Over Barbell Row",               sets:2, hasDrop:false, trackingType:"reps", target:"8–12",       notes:"",  exType:"compound" },
+    { id:"UA5", name:"Cable Lateral Raise",                 sets:2, hasDrop:true,  trackingType:"reps", target:"12–15 ea",   notes:"",  exType:"isolation" },
+    { id:"UA6", name:"Straight Bar Cable Tricep Pushdown",  sets:2, hasDrop:true,  trackingType:"reps", target:"10–15",      notes:"",  exType:"isolation" },
+    { id:"UA7", name:"Standing DB Bicep Curl",              sets:3, hasDrop:false, trackingType:"reps", target:"10–12",      notes:"",  exType:"isolation" },
   ]},
   "Lower A": { label: "Lower A", subtitle: "Athletic", cardio: null, goal: "athletic", exercises: [
-    { id:"LA1", name:"Trap Bar Deadlift",   sets:2, hasDrop:false, trackingType:"reps",     target:"6–10",              notes:"Explosive intent on the way up",         exType:"compound" },
-    { id:"LA2", name:"Walking Lunges",      sets:3, hasDrop:false, trackingType:"laps",     target:"3",                 notes:"To end and back = 1 lap",                exType:"compound" },
-    { id:"LA3", name:"Leg Extension",       sets:2, hasDrop:false, trackingType:"reps",     target:"12–15",             notes:"Controlled",                             exType:"isolation" },
-    { id:"LA4", name:"Sled Pull + Push",    sets:2, hasDrop:false, trackingType:"distance", target:"Turf length",       notes:"Pull down, push back = 1 set",           exType:"carries" },
-    { id:"LA5", name:"Suitcase Carry",      sets:2, hasDrop:false, trackingType:"distance", target:"Turf length ea side",notes:"Left hand down, right hand back",       exType:"carries" },
-    { id:"LA6", name:"Abs",                 sets:3, hasDrop:false, trackingType:"reps",     target:"—",                 notes:"Your choice",                            exType:"conditioning" },
+    { id:"LA1", name:"Trap Bar Deadlift",   sets:2, hasDrop:false, trackingType:"reps",     target:"6–10",               notes:"", exType:"compound" },
+    { id:"LA2", name:"Walking Lunges",      sets:3, hasDrop:false, trackingType:"laps",     target:"3",                  notes:"", exType:"compound" },
+    { id:"LA3", name:"Leg Extension",       sets:2, hasDrop:false, trackingType:"reps",     target:"12–15",              notes:"", exType:"isolation" },
+    { id:"LA4", name:"Sled Pull + Push",    sets:2, hasDrop:false, trackingType:"distance", target:"Turf length",        notes:"", exType:"carries" },
+    { id:"LA5", name:"Suitcase Carry",      sets:2, hasDrop:false, trackingType:"distance", target:"Turf length ea side",notes:"", exType:"carries" },
+    { id:"LA6", name:"Abs",                 sets:3, hasDrop:false, trackingType:"reps",     target:"—",                  notes:"", exType:"conditioning" },
   ]},
   "Upper B": { label: "Upper B", subtitle: "Shoulder Priority", cardio: "15–20 min", goal: "hypertrophy", exercises: [
-    { id:"UB1", name:"Smith Machine Shoulder Press",        sets:2, hasDrop:false, trackingType:"reps", target:"8–12",       notes:"Lead movement",                      exType:"compound" },
-    { id:"UB2", name:"Supported Bent Over DB Row",          sets:2, hasDrop:false, trackingType:"reps", target:"10–12 ea",   notes:"One hand on bench",                  exType:"compound" },
-    { id:"UB3", name:"DB Lateral Raise",                    sets:2, hasDrop:true,  trackingType:"reps", target:"12–15",      notes:"50% drop on set 2",                  exType:"isolation" },
-    { id:"UB4", name:"Straight Bar Lat Pulldown",           sets:2, hasDrop:false, trackingType:"reps", target:"10–12",      notes:"Full stretch at top",                exType:"compound" },
-    { id:"UB5", name:"Overhead DB Tricep Extension",        sets:2, hasDrop:true,  trackingType:"reps", target:"10–12 ea",   notes:"Single arm, 50% drop",               exType:"isolation" },
-    { id:"UB6", name:"Machine Preacher Curl",               sets:3, hasDrop:false, trackingType:"reps", target:"10–12",      notes:"Light, stay pain free",              exType:"isolation" },
+    { id:"UB1", name:"Smith Machine Shoulder Press",        sets:2, hasDrop:false, trackingType:"reps", target:"8–12",     notes:"", exType:"compound" },
+    { id:"UB2", name:"Supported Bent Over DB Row",          sets:2, hasDrop:false, trackingType:"reps", target:"10–12 ea", notes:"", exType:"compound" },
+    { id:"UB3", name:"DB Lateral Raise",                    sets:2, hasDrop:true,  trackingType:"reps", target:"12–15",    notes:"", exType:"isolation" },
+    { id:"UB4", name:"Straight Bar Lat Pulldown",           sets:2, hasDrop:false, trackingType:"reps", target:"10–12",    notes:"", exType:"compound" },
+    { id:"UB5", name:"Overhead DB Tricep Extension",        sets:2, hasDrop:true,  trackingType:"reps", target:"10–12 ea", notes:"", exType:"isolation" },
+    { id:"UB6", name:"Machine Preacher Curl",               sets:3, hasDrop:false, trackingType:"reps", target:"10–12",    notes:"", exType:"isolation" },
   ]},
   "Lower B": { label: "Lower B", subtitle: "Athletic · Power Focus", cardio: null, goal: "athletic", exercises: [
-    { id:"LB1", name:"Plyometric Complex",      sets:2, hasDrop:false, trackingType:"reps",     target:"3–5 loops",   notes:"Box jump → lateral bound → broad jump",  exType:"plyometric" },
-    { id:"LB2", name:"Conventional Deadlift",   sets:2, hasDrop:false, trackingType:"reps",     target:"5–8",         notes:"Power intent",                           exType:"compound" },
-    { id:"LB3", name:"Bulgarian Split Squat",   sets:2, hasDrop:false, trackingType:"reps",     target:"8–10 ea",     notes:"Bodyweight or light DB",                 exType:"compound" },
-    { id:"LB4", name:"Seated Hamstring Curl",   sets:2, hasDrop:false, trackingType:"reps",     target:"10–12",       notes:"Controlled, full range",                 exType:"isolation" },
-    { id:"LB5", name:"Farmers Carry",           sets:2, hasDrop:false, trackingType:"distance", target:"Turf length", notes:"Both hands, heavy",                      exType:"carries" },
-    { id:"LB6", name:"Hanging Leg Raise",       sets:3, hasDrop:false, trackingType:"reps",     target:"10–15",       notes:"No swinging",                            exType:"conditioning" },
+    { id:"LB1", name:"Plyometric Complex",      sets:2, hasDrop:false, trackingType:"reps",     target:"3–5 loops",   notes:"", exType:"plyometric" },
+    { id:"LB2", name:"Conventional Deadlift",   sets:2, hasDrop:false, trackingType:"reps",     target:"5–8",         notes:"", exType:"compound" },
+    { id:"LB3", name:"Bulgarian Split Squat",   sets:2, hasDrop:false, trackingType:"reps",     target:"8–10 ea",     notes:"", exType:"compound" },
+    { id:"LB4", name:"Seated Hamstring Curl",   sets:2, hasDrop:false, trackingType:"reps",     target:"10–12",       notes:"", exType:"isolation" },
+    { id:"LB5", name:"Farmers Carry",           sets:2, hasDrop:false, trackingType:"distance", target:"Turf length", notes:"", exType:"carries" },
+    { id:"LB6", name:"Hanging Leg Raise",       sets:3, hasDrop:false, trackingType:"reps",     target:"10–15",       notes:"", exType:"conditioning" },
   ]},
   "Accessory": { label: "Accessory", subtitle: "Accessory · Injury Phase", cardio: null, goal: "hypertrophy", exercises: [
-    { id:"AC1", name:"DB Lateral Raise",                          sets:2, hasDrop:true,  trackingType:"reps", target:"12–15", notes:"50% drop",             exType:"isolation" },
-    { id:"AC2", name:"Cable Rear Delt Fly",                       sets:2, hasDrop:true,  trackingType:"reps", target:"12–15", notes:"Light, 50% drop",      exType:"isolation" },
-    { id:"AC3", name:"JM Press / Overhead DB Tricep Extension",   sets:2, hasDrop:true,  trackingType:"reps", target:"10–12", notes:"Pain free position",   exType:"isolation" },
-    { id:"AC4", name:"Hammer Curl Variation",                     sets:3, hasDrop:false, trackingType:"reps", target:"10–12", notes:"Whatever angle works", exType:"isolation" },
+    { id:"AC1", name:"DB Lateral Raise",                          sets:2, hasDrop:true,  trackingType:"reps", target:"12–15", notes:"", exType:"isolation" },
+    { id:"AC2", name:"Cable Rear Delt Fly",                       sets:2, hasDrop:true,  trackingType:"reps", target:"12–15", notes:"", exType:"isolation" },
+    { id:"AC3", name:"JM Press / Overhead DB Tricep Extension",   sets:2, hasDrop:true,  trackingType:"reps", target:"10–12", notes:"", exType:"isolation" },
+    { id:"AC4", name:"Hammer Curl Variation",                     sets:3, hasDrop:false, trackingType:"reps", target:"10–12", notes:"", exType:"isolation" },
   ]},
 };
 
@@ -217,6 +217,28 @@ function legacyToSplitsDoc(data) {
     splits: [{ id: "default", name: "Athletic Hypertrophy Split", days: [...DAY_KEYS], program: copy(program) }]
   };
 }
+async function migrateExerciseNotes(userName, splitsDoc) {
+  const flag = `stack_notes_migrated_${userName}`;
+  if (localStorage.getItem(flag)) return splitsDoc;
+  let changed = false;
+  const newSplits = splitsDoc.splits.map(split => {
+    const newProgram = {};
+    for (const [dk, dayData] of Object.entries(split.program || {})) {
+      const exercises = (dayData.exercises || []).map(ex => {
+        if (ex.notes) { changed = true; return { ...ex, notes: "" }; }
+        return ex;
+      });
+      newProgram[dk] = { ...dayData, exercises };
+    }
+    return { ...split, program: newProgram };
+  });
+  localStorage.setItem(flag, "1");
+  if (!changed) return splitsDoc;
+  const newDoc = { ...splitsDoc, splits: newSplits };
+  await fbSaveSplits(userName, newDoc);
+  return newDoc;
+}
+
 async function fbLoadSplits(user, isNewUser = false) {
   try {
     const snap = await getDoc(doc(db, "programs", user));
@@ -2039,8 +2061,9 @@ export default function App() {
     if (!currentUser) return;
     setLoadingSplits(true);
     const isNewUser = !USERS.includes(currentUser);
-    Promise.all([fbLoadSplits(currentUser, isNewUser), fbLoadSettings(currentUser)]).then(([sd, s]) => {
-      setSplitsData(prev => ({ ...prev, [currentUser]: sd }));
+    Promise.all([fbLoadSplits(currentUser, isNewUser), fbLoadSettings(currentUser)]).then(async ([sd, s]) => {
+      const migrated = await migrateExerciseNotes(currentUser, sd);
+      setSplitsData(prev => ({ ...prev, [currentUser]: migrated }));
       setUserSettings(prev => ({ ...prev, [currentUser]: s }));
       setLoadingSplits(false);
     });
