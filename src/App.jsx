@@ -980,7 +980,6 @@ function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onVie
               <span style={{ fontSize:15, fontWeight:800, color:"#0a0a0a" }}>{user}</span>
               {readOnly && <Tag color="#ea580c" bg="#fff7ed">Viewing</Tag>}
             </div>
-            <div style={{ fontSize:10, color:"#bbb" }}>Phase 1 · Athletic Hypertrophy</div>
           </div>
         </div>
         {otherUser && (
