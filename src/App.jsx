@@ -1990,8 +1990,10 @@ export default function App() {
       const ud = merged[targetUser] || { activeSplitId: updatedSplit.id, splits: [] };
       const splits = ud.splits.length === 0
         ? [{ ...updatedSplit, id: ud.activeSplitId || updatedSplit.id }]
-        : ud.splits.map((s, i) => (targetUser === user ? s.id === ud.activeSplitId : i === 0)
-            ? { ...s, days: updatedSplit.days, program: updatedSplit.program } : s);
+        : ud.splits.map(s =>
+            (targetUser === user ? s.id === ud.activeSplitId : s.name.toLowerCase() === updatedSplit.name.toLowerCase())
+              ? { ...s, days: updatedSplit.days, program: updatedSplit.program } : s
+          );
       const newDoc = { activeSplitId: ud.activeSplitId || updatedSplit.id, splits };
       await fbSaveSplits(targetUser, newDoc);
       setSplitsData(prev => ({ ...prev, [targetUser]: newDoc }));
