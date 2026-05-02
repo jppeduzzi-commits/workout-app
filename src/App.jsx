@@ -287,6 +287,23 @@ async function fbUpdateSharedSession(id, updates) {
   try { await updateDoc(doc(db, "sharedSessions", id), updates); } catch(e) { console.error(e); }
 }
 
+// When copying a program to another user, remap exercise IDs to match their existing IDs by name.
+// This keeps their session history connected even after a program overwrite.
+function remapProgramIds(newProg, existingProg) {
+  const result = {};
+  for (const [dk, dayData] of Object.entries(newProg)) {
+    const existingExs = (existingProg?.[dk]?.exercises) || [];
+    const nameToId = {};
+    existingExs.forEach(ex => { nameToId[ex.name.toLowerCase()] = ex.id; });
+    const exercises = (dayData.exercises || []).map(ex => ({
+      ...ex,
+      id: nameToId[ex.name.toLowerCase()] || ex.id,
+    }));
+    result[dk] = { ...dayData, exercises };
+  }
+  return result;
+}
+
 async function fbShareSplitAsTemplate(fromUser, split, toUser) {
   try {
     const toDoc = await fbLoadSplits(canonicalName(toUser), !USERS.includes(canonicalName(toUser)));
@@ -916,7 +933,24 @@ function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onVie
     setSaved(false);
   }, [user, activeDay]);
 
-  const getPrev = id => { for (let i=sessions.length-1;i>=0;i--) { const e=sessions[i]?.entries?.[id]; if(e)return e; } return null; };
+  const getPrev = (id, name) => {
+    // Direct ID match
+    for (let i = sessions.length - 1; i >= 0; i--) {
+      const e = sessions[i]?.entries?.[id];
+      if (e) return e;
+    }
+    // Fallback: same-named exercise in the current day (catches re-added duplicates with new IDs)
+    if (name && curDay) {
+      const altIds = (curDay.exercises || []).filter(e => e.id !== id && e.name.toLowerCase() === name.toLowerCase()).map(e => e.id);
+      for (const altId of altIds) {
+        for (let i = sessions.length - 1; i >= 0; i--) {
+          const e = sessions[i]?.entries?.[altId];
+          if (e) return e;
+        }
+      }
+    }
+    return null;
+  };
 
   const handleSave = async () => {
     if (sharedSession && onSharedSave) {
@@ -996,7 +1030,7 @@ function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onVie
         ) : curDay.exercises.map(ex => (
           <ExerciseLogRow key={ex.id} ex={ex}
             entry={readOnly ? (lastSession?.entries?.[ex.id]||null) : (current[ex.id]||null)}
-            prevEntry={readOnly ? null : getPrev(ex.id)}
+            prevEntry={readOnly ? null : getPrev(ex.id, ex.name)}
             onChange={readOnly ? ()=>{} : val=>handleChange(ex.id, val)}
             readOnly={readOnly}
             sessions={sessions}
@@ -1990,10 +2024,12 @@ export default function App() {
       const ud = merged[targetUser] || { activeSplitId: updatedSplit.id, splits: [] };
       const splits = ud.splits.length === 0
         ? [{ ...updatedSplit, id: ud.activeSplitId || updatedSplit.id }]
-        : ud.splits.map(s =>
-            (targetUser === user ? s.id === ud.activeSplitId : s.name.toLowerCase() === updatedSplit.name.toLowerCase())
-              ? { ...s, days: updatedSplit.days, program: updatedSplit.program } : s
-          );
+        : ud.splits.map(s => {
+            const matches = targetUser === user ? s.id === ud.activeSplitId : s.name.toLowerCase() === updatedSplit.name.toLowerCase();
+            if (!matches) return s;
+            const program = targetUser === user ? updatedSplit.program : remapProgramIds(updatedSplit.program, s.program);
+            return { ...s, days: updatedSplit.days, program };
+          });
       const newDoc = { activeSplitId: ud.activeSplitId || updatedSplit.id, splits };
       await fbSaveSplits(targetUser, newDoc);
       setSplitsData(prev => ({ ...prev, [targetUser]: newDoc }));
