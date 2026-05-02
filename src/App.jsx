@@ -180,7 +180,10 @@ function Toggle({ on, onToggle, label }) {
 }
 
 function makeRows(ex) {
-  return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ bw:false, weight:"", perf:"", rir:null }));
+  const base = ex.isSuperset
+    ? { bw:false, weight:"", perf:"", rir:null, bw2:false, weight2:"", perf2:"" }
+    : { bw:false, weight:"", perf:"", rir:null };
+  return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
 // ── Firebase helpers ────────────────────────────────────────────────────────
@@ -714,13 +717,15 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
   const sets     = entry?.sets || makeRows(ex);
   const isSub    = entry?.isSub || false;
   const subName  = entry?.subName || "";
-  const logged   = sets.some(s => s.bw || s.weight || s.perf);
+  const logged   = ex.isSuperset
+    ? sets.some(s => s.weight || s.perf || s.weight2 || s.perf2)
+    : sets.some(s => s.bw || s.weight || s.perf);
   const prevSets = prevEntry?.sets || [];
   const prevIsSub   = prevEntry?.isSub || false;
   const prevSubName = prevEntry?.subName || "";
 
-  // PR detection — skip if either session was a sub (different exercises = incomparable numbers)
-  const hasPR = !isSub && !prevIsSub && prevEntry && sets.some(s => s.weight && s.perf && !s.bw) && (() => {
+  // PR detection — skip supersets and subs (incomparable numbers)
+  const hasPR = !ex.isSuperset && !isSub && !prevIsSub && prevEntry && sets.some(s => s.weight && s.perf && !s.bw) && (() => {
     const cur  = Math.max(...sets.map(s => (parseFloat(s.weight)||0) * (parseFloat(s.perf)||0)));
     const prev = Math.max(...(prevEntry.sets||[]).map(s => (parseFloat(s.weight)||0) * (parseFloat(s.perf)||0)));
     return cur > prev && prev > 0;
@@ -728,7 +733,7 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
 
   // Detect if any working set hit the top of the target rep range → flag to add weight
   const repRange = parseRepRange(ex.target);
-  const toppedRange = !isSub && track.key === "reps" && repRange && sets.some(s => !s.bw && s.perf && parseFloat(s.perf) >= repRange.max);
+  const toppedRange = !ex.isSuperset && !isSub && track.key === "reps" && repRange && sets.some(s => !s.bw && s.perf && parseFloat(s.perf) >= repRange.max);
   const bestSetWeight = (() => {
     if (!toppedRange || !repRange) return null;
     const ws = sets.filter(s => !s.bw && s.weight && s.perf && parseFloat(s.perf) >= repRange.max);
@@ -736,9 +741,14 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
   })();
   const suggestedNextWeight = bestSetWeight ? roundTo(bestSetWeight * 1.05, 2.5) : null;
 
-  // Mark _prevIsSub on each set so SetRow can colour the LAST column amber
+  // Enrich sets with previous values — superset gets _prevA and _prevB separately
   const enrichedSets = sets.map((s, i) => {
-    if (!prevSets[i]) return { ...s, _prev:"—", _prevIsSub:false };
+    if (!prevSets[i]) return { ...s, _prev:"—", _prevA:"—", _prevB:"—", _prevIsSub:false };
+    if (ex.isSuperset) {
+      const pA = prevSets[i].bw  ? `BW×${prevSets[i].perf||"—"}`  : `${prevSets[i].weight||"—"}×${prevSets[i].perf||"—"}`;
+      const pB = prevSets[i].bw2 ? `BW×${prevSets[i].perf2||"—"}` : `${prevSets[i].weight2||"—"}×${prevSets[i].perf2||"—"}`;
+      return { ...s, _prev:pA, _prevA:pA, _prevB:pB, _prevIsSub:false };
+    }
     const raw = prevSets[i].bw ? `BW×${prevSets[i].perf||"—"}` : `${prevSets[i].weight||"—"}×${prevSets[i].perf||"—"}`;
     return { ...s, _prev:raw, _prevIsSub:prevIsSub };
   });
@@ -749,7 +759,12 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
     const n = sets.map((s,idx) => idx===i ? {...s,[f]:v} : s);
     onChange({...entry, sets:n});
   };
-  const addSet = () => onChange({...entry, sets:[...sets, {bw:false, weight:"", perf:"", rir:null}]});
+  const addSet = () => {
+    const newRow = ex.isSuperset
+      ? {bw:false, weight:"", perf:"", rir:null, bw2:false, weight2:"", perf2:""}
+      : {bw:false, weight:"", perf:"", rir:null};
+    onChange({...entry, sets:[...sets, newRow]});
+  };
   const delSet = i => onChange({...entry, sets:sets.filter((_,idx) => idx!==i)});
 
   const getSuggestion = i => {
@@ -778,7 +793,9 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
             {!isSub && prevIsSub && <Tag color="#f59e0b" bg="#fffbeb">Last: sub</Tag>}
             {toppedRange && <Tag color="#2563eb" bg="#eff6ff">↑ Add weight</Tag>}
           </div>
-          <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>{ex.sets} sets{ex.hasDrop?" + drop":""} · {ex.target} {track.label.toLowerCase()}</div>
+          <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>
+            {ex.isSuperset ? `${ex.sets} sets · Superset` : `${ex.sets} sets${ex.hasDrop?" + drop":""} · ${ex.target} ${track.label.toLowerCase()}`}
+          </div>
           {prevIsSub && prevSubName && !open && (
             <div style={{ fontSize:10, color:"#f59e0b", marginTop:3, fontWeight:600 }}>↻ Last session: {prevSubName}</div>
           )}
@@ -831,25 +848,57 @@ function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, on
             </div>
           )}
 
-          {/* Column headers */}
-          <div style={{ display:"grid", gridTemplateColumns:gridCols, gap:"0 6px", marginBottom:6 }}>
-            {headers.map(h => (
-              <div key={h} style={{ fontSize:10, color:"#bbb", fontWeight:700, marginBottom:4 }}>{h}</div>
-            ))}
-          </div>
-
-          {enrichedSets.map((s, i) => {
-            const isDrop   = ex.hasDrop && i === ex.sets;
-            const suggestion = !isDrop ? getSuggestion(i) : null;
-            return (
-              <SetRow key={i} s={s} i={i} isDrop={isDrop} track={track} readOnly={readOnly}
-                showRIR={showRIR}
-                suggestion={suggestion}
-                onUpdate={(f,v) => updSet(i,f,v)}
-                onDelete={() => delSet(i)}
-              />
-            );
-          })}
+          {/* Superset layout */}
+          {ex.isSuperset ? (
+            <>
+              <div style={{ fontSize:11, color:"#888", marginBottom:12, lineHeight:1.7 }}>
+                <span style={{ fontWeight:800, color:"#0a0a0a" }}>A</span> {ex.supersetNameA}&nbsp;&nbsp;·&nbsp;&nbsp;<span style={{ fontWeight:800, color:"#0a0a0a" }}>B</span> {ex.supersetNameB}
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"26px 1fr 1fr 56px", gap:"0 6px", marginBottom:4 }}>
+                {["", "WEIGHT", "REPS", "LAST"].map(h => <div key={h} style={{ fontSize:10, color:"#bbb", fontWeight:700 }}>{h}</div>)}
+              </div>
+              {enrichedSets.map((s, i) => (
+                <div key={i} style={{ marginBottom:10 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"26px 1fr 1fr 56px", gap:"0 6px", alignItems:"center", marginBottom:4 }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:"#0a0a0a" }}>{i+1}A</div>
+                    <input disabled={readOnly} value={s.weight||""} onChange={e=>updSet(i,"weight",e.target.value)} placeholder="lbs" style={{ ...inp, padding:"5px 7px", fontSize:12, background:"#f8f8f8", border:"1px solid #e8e8e8" }} />
+                    <input disabled={readOnly} value={s.perf||""} onChange={e=>updSet(i,"perf",e.target.value)} placeholder="reps" style={{ ...inp, padding:"5px 7px", fontSize:12, background:"#f8f8f8", border:"1px solid #e8e8e8" }} />
+                    <div style={{ fontSize:11, textAlign:"right", color:"#bbb", paddingLeft:2 }}>{s._prevA||"—"}</div>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"26px 1fr 1fr 56px", gap:"0 6px", alignItems:"center" }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:"#555" }}>{i+1}B</div>
+                    <input disabled={readOnly} value={s.weight2||""} onChange={e=>updSet(i,"weight2",e.target.value)} placeholder="lbs" style={{ ...inp, padding:"5px 7px", fontSize:12, background:"#f8f8f8", border:"1px solid #e8e8e8" }} />
+                    <input disabled={readOnly} value={s.perf2||""} onChange={e=>updSet(i,"perf2",e.target.value)} placeholder="reps" style={{ ...inp, padding:"5px 7px", fontSize:12, background:"#f8f8f8", border:"1px solid #e8e8e8" }} />
+                    <div style={{ fontSize:11, textAlign:"right", color:"#bbb", paddingLeft:2 }}>{s._prevB||"—"}</div>
+                  </div>
+                  {!readOnly && sets.length > 1 && (
+                    <button onClick={() => delSet(i)} style={{ background:"none", border:"none", color:"#d0d0d0", fontSize:10, cursor:"pointer", padding:"3px 0 0", fontFamily:"inherit" }}>Remove set</button>
+                  )}
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              {/* Column headers */}
+              <div style={{ display:"grid", gridTemplateColumns:gridCols, gap:"0 6px", marginBottom:6 }}>
+                {headers.map(h => (
+                  <div key={h} style={{ fontSize:10, color:"#bbb", fontWeight:700, marginBottom:4 }}>{h}</div>
+                ))}
+              </div>
+              {enrichedSets.map((s, i) => {
+                const isDrop   = ex.hasDrop && i === ex.sets;
+                const suggestion = !isDrop ? getSuggestion(i) : null;
+                return (
+                  <SetRow key={i} s={s} i={i} isDrop={isDrop} track={track} readOnly={readOnly}
+                    showRIR={showRIR}
+                    suggestion={suggestion}
+                    onUpdate={(f,v) => updSet(i,f,v)}
+                    onDelete={() => delSet(i)}
+                  />
+                );
+              })}
+            </>
+          )}
 
           {ex.hasDrop && (
             <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:7, padding:"6px 10px", fontSize:11, color:"#92400e", marginBottom:8 }}>
@@ -1211,16 +1260,49 @@ function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef, isDragging })
 
 function AddModal({ onAdd, onClose }) {
   const [step, setStep] = useState(0);
-  const [ex, setEx] = useState({ id:uid(), name:"", sets:3, hasDrop:false, trackingType:"reps", exType:"compound", target:"", notes:"" });
+  const [ex, setEx] = useState({ id:uid(), name:"", isSuperset:false, supersetNameA:"", supersetNameB:"", sets:3, hasDrop:false, trackingType:"reps", exType:"compound", target:"", notes:"" });
   const track = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
-  const canNext = [ex.name.trim().length > 0, true, true, true, true];
+  const canNext = [
+    ex.isSuperset ? (ex.supersetNameA.trim().length > 0 && ex.supersetNameB.trim().length > 0) : ex.name.trim().length > 0,
+    true, true, true, true,
+  ];
+
+  const toggleSuperset = () => setEx(x => {
+    const on = !x.isSuperset;
+    return { ...x, isSuperset:on, supersetNameA: on ? (x.name||x.supersetNameA) : x.supersetNameA, name: on ? (x.supersetNameA||x.name) : x.supersetNameA };
+  });
 
   const steps = [
-    // Step 0 — Name
+    // Step 0 — Name (+ optional superset)
     <div>
       <div style={{ fontSize:15, fontWeight:800, marginBottom:4, color:"#0a0a0a" }}>What's the exercise called?</div>
       <div style={{ fontSize:12, color:"#bbb", marginBottom:12 }}>Type the full name</div>
-      <input value={ex.name} onChange={e=>setEx(x=>({...x, name:e.target.value}))} placeholder="e.g. Cable Lateral Raise" style={inp} />
+      <input
+        value={ex.isSuperset ? ex.supersetNameA : ex.name}
+        onChange={e => {
+          const v = e.target.value;
+          ex.isSuperset
+            ? setEx(x => ({ ...x, supersetNameA:v, name:`${v} / ${x.supersetNameB}` }))
+            : setEx(x => ({ ...x, name:v }));
+        }}
+        placeholder={ex.isSuperset ? "First exercise name" : "e.g. Cable Lateral Raise"}
+        autoFocus
+        style={{ ...inp, marginBottom:14 }}
+      />
+      <label onClick={toggleSuperset} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginBottom: ex.isSuperset ? 14 : 0 }}>
+        <div style={{ width:36, height:20, borderRadius:10, background:ex.isSuperset?"#0a0a0a":"#d1d5db", position:"relative", transition:"background .2s", flexShrink:0 }}>
+          <div style={{ position:"absolute", top:2, left:ex.isSuperset?18:2, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left .2s" }} />
+        </div>
+        <span style={{ fontSize:13, color:"#555", fontWeight:600 }}>Superset — pair with another exercise</span>
+      </label>
+      {ex.isSuperset && (
+        <input
+          value={ex.supersetNameB}
+          onChange={e => setEx(x => ({ ...x, supersetNameB:e.target.value, name:`${x.supersetNameA} / ${e.target.value}` }))}
+          placeholder="Second exercise name"
+          style={{ ...inp }}
+        />
+      )}
     </div>,
     // Step 1 — Exercise type
     <div>
