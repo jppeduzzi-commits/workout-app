@@ -1515,9 +1515,10 @@ function ShareSplitModal({ split, currentUser, onShare, onClose }) {
 
 // ── Home Screen ──────────────────────────────────────────────────────────────
 
-function HomeScreen({ user, userDoc, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onShareSplit }) {
+function HomeScreen({ user, userDoc, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit }) {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const submit = () => {
     const n = newName.trim();
@@ -1552,9 +1553,10 @@ function HomeScreen({ user, userDoc, loadingSplits, onSelectSplit, onCreateSplit
         ) : null}
         {userDoc.splits.map(split => {
           const isActive = split.id === userDoc.activeSplitId;
+          const isConfirming = confirmDelete === split.id;
           return (
             <div key={split.id} style={{ display:"flex", alignItems:"stretch", gap:8, marginBottom:10 }}>
-              <button onClick={() => onSelectSplit(split.id)}
+              <button onClick={() => { onSelectSplit(split.id); setConfirmDelete(null); }}
                 style={{ flex:1, padding:"18px 20px",
                   background: isActive ? "#0a0a0a" : "#fff",
                   border: isActive ? "1.5px solid #0a0a0a" : "1.5px solid #e8e8e8",
@@ -1568,10 +1570,14 @@ function HomeScreen({ user, userDoc, loadingSplits, onSelectSplit, onCreateSplit
                   {split.days.length} {split.days.length === 1 ? "day" : "days"}
                 </div>
               </button>
-              <button onClick={() => onShareSplit(split)}
-                title="Share as template"
-                style={{ padding:"0 14px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:16, cursor:"pointer", fontSize:16, color:"#bbb", flexShrink:0 }}>
-                ↑
+              <button
+                onClick={() => {
+                  if (isConfirming) { onDeleteSplit(split.id); setConfirmDelete(null); }
+                  else setConfirmDelete(split.id);
+                }}
+                onBlur={() => setTimeout(() => setConfirmDelete(c => c === split.id ? null : c), 150)}
+                style={{ padding:"0 14px", background: isConfirming ? "#fee2e2" : "#fff", border: isConfirming ? "1.5px solid #fca5a5" : "1.5px solid #e8e8e8", borderRadius:16, cursor:"pointer", fontSize: isConfirming ? 11 : 16, color: isConfirming ? "#dc2626" : "#ccc", flexShrink:0, fontFamily:"inherit", fontWeight:700, transition:"all .15s", minWidth:44 }}>
+                {isConfirming ? "Remove?" : "✕"}
               </button>
             </div>
           );
@@ -1605,11 +1611,105 @@ function HomeScreen({ user, userDoc, loadingSplits, onSelectSplit, onCreateSplit
   );
 }
 
+// ── Partner Session Modal ─────────────────────────────────────────────────────
+
+function PartnerSessionModal({ activeSplit, activeDays, currentUser, onShareSplit, onStartSession, onClose }) {
+  const [partner, setPartner] = useState("");
+  const [mode, setMode] = useState(null); // "share" | "session"
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const partnerTrimmed = partner.trim();
+  const valid = partnerTrimmed && partnerTrimmed.toLowerCase() !== currentUser.toLowerCase();
+
+  const handleShare = async () => {
+    if (!valid) return;
+    setBusy(true);
+    await onShareSplit(partnerTrimmed, activeSplit);
+    setDone(true);
+    setTimeout(onClose, 1600);
+  };
+
+  const handleStartSession = async () => {
+    if (!valid || !selectedDay) return;
+    setBusy(true);
+    await onStartSession(partnerTrimmed, selectedDay);
+    // onStartSession navigates away, so no need to close
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:200, display:"flex", alignItems:"flex-end" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width:"100%", background:"#fff", borderRadius:"18px 18px 0 0", padding:"24px 20px", paddingBottom:"max(32px,env(safe-area-inset-bottom,32px))", fontFamily:"Barlow,sans-serif" }}>
+        <div style={{ fontSize:17, fontWeight:900, color:"#0a0a0a", marginBottom:6 }}>Partner training</div>
+        <div style={{ fontSize:12, color:"#888", marginBottom:18, lineHeight:1.5 }}>
+          Train with anyone on STACK — share a split or start a live shared session.
+        </div>
+
+        {/* Partner input */}
+        <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.1em", marginBottom:6 }}>PARTNER USERNAME</div>
+        <input
+          value={partner}
+          onChange={e => { setPartner(e.target.value); setMode(null); setSelectedDay(null); setDone(false); }}
+          placeholder="Their name..."
+          autoCorrect="off" autoCapitalize="words" spellCheck={false}
+          style={{ ...inp, width:"100%", boxSizing:"border-box", marginBottom:16, fontSize:15, padding:"11px 14px" }}
+        />
+
+        {/* Mode picker */}
+        <div style={{ display:"flex", gap:8, marginBottom:18 }}>
+          <button onClick={() => { setMode("share"); setSelectedDay(null); }}
+            style={{ flex:1, padding:"12px 10px", background: mode === "share" ? "#0a0a0a" : "#f5f5f5", color: mode === "share" ? "#fff" : "#555", border:"none", borderRadius:12, fontFamily:"inherit", fontSize:13, fontWeight:800, cursor:"pointer" }}>
+            Share split
+          </button>
+          <button onClick={() => setMode("session")}
+            style={{ flex:1, padding:"12px 10px", background: mode === "session" ? "#0a0a0a" : "#f5f5f5", color: mode === "session" ? "#fff" : "#555", border:"none", borderRadius:12, fontFamily:"inherit", fontSize:13, fontWeight:800, cursor:"pointer" }}>
+            Start session
+          </button>
+        </div>
+
+        {/* Share split mode */}
+        {mode === "share" && (
+          <>
+            <div style={{ fontSize:12, color:"#888", marginBottom:14, lineHeight:1.5 }}>
+              <strong>"{activeSplit?.name}"</strong> will be copied to {partnerTrimmed || "them"} as their own independent split. Changes after sharing won't sync.
+            </div>
+            <button onClick={handleShare} disabled={!valid || busy || done}
+              style={{ width:"100%", padding:13, background: done ? "#16a34a" : valid ? "#0a0a0a" : "#e8e8e8", color: valid ? "#fff" : "#bbb", border:"none", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:800, cursor: valid && !busy && !done ? "pointer" : "default" }}>
+              {done ? "✓ Sent!" : busy ? "Sharing..." : "Share split →"}
+            </button>
+          </>
+        )}
+
+        {/* Start session mode */}
+        {mode === "session" && (
+          <>
+            <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.1em", marginBottom:8 }}>PICK A DAY</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
+              {activeDays.map(dk => (
+                <button key={dk} onClick={() => setSelectedDay(dk)}
+                  style={{ padding:"8px 14px", background: selectedDay === dk ? "#0a0a0a" : "#f5f5f5", color: selectedDay === dk ? "#fff" : "#555", border:"none", borderRadius:20, fontFamily:"inherit", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                  {dk}
+                </button>
+              ))}
+            </div>
+            <button onClick={handleStartSession} disabled={!valid || !selectedDay || busy}
+              style={{ width:"100%", padding:13, background: valid && selectedDay ? "#ea580c" : "#e8e8e8", color: valid && selectedDay ? "#fff" : "#bbb", border:"none", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:800, cursor: valid && selectedDay && !busy ? "pointer" : "default" }}>
+              {busy ? "Starting..." : "Start shared session →"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Day Select Screen ────────────────────────────────────────────────────────
 
-function DaySelectScreen({ activeSplit, activeDays, activeProgram, onSelectDay, onEditor, onReorderDays, onBack, trainingPartners, onStartSharedSession, joinableSession, onJoinSharedSession }) {
+function DaySelectScreen({ activeSplit, activeDays, activeProgram, onSelectDay, onEditor, onReorderDays, onBack, currentUser, onShareSplitWith, onStartSessionWith, joinableSession, onJoinSharedSession }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
+  const [showPartnerModal, setShowPartnerModal] = useState(false);
   const dayRefs = useRef({});
 
   useEffect(() => {
@@ -1670,21 +1770,6 @@ function DaySelectScreen({ activeSplit, activeDays, activeProgram, onSelectDay, 
           </div>
         )}
 
-        {/* Train with partners */}
-        {(trainingPartners || []).length > 0 && (
-          <div style={{ marginBottom:20 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:10 }}>Train with</div>
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              {(trainingPartners || []).map(partner => (
-                <button key={partner} onClick={() => onStartSharedSession(partner)}
-                  style={{ padding:"8px 14px", background:"#0a0a0a", color:"#fff", border:"none", borderRadius:20, fontFamily:"inherit", fontSize:13, fontWeight:700, cursor:"pointer" }}>
-                  + {partner}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Day cards */}
         {activeDays.length > 0 ? displayDays.map(dk => {
           const origIdx = activeDays.indexOf(dk);
@@ -1715,7 +1800,23 @@ function DaySelectScreen({ activeSplit, activeDays, activeProgram, onSelectDay, 
           ✏️  Edit program
         </button>
 
+        <button onClick={() => setShowPartnerModal(true)}
+          style={{ display:"block", width:"100%", marginTop:10, padding:"13px 16px", background:"transparent", border:"1.5px solid #e8e8e8", borderRadius:14, cursor:"pointer", textAlign:"left", fontFamily:"inherit", color:"#888", fontSize:13, fontWeight:700 }}>
+          Partner training →
+        </button>
+
       </div>
+
+      {showPartnerModal && (
+        <PartnerSessionModal
+          activeSplit={activeSplit}
+          activeDays={activeDays}
+          currentUser={currentUser}
+          onShareSplit={async (partner, split) => { await onShareSplitWith(partner, split); }}
+          onStartSession={async (partner, dayKey) => { setShowPartnerModal(false); await onStartSessionWith(partner, dayKey); }}
+          onClose={() => setShowPartnerModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1776,18 +1877,13 @@ export default function App() {
   const [loadingSplits, setLoadingSplits] = useState(false);
   const [userSettings, setUserSettings] = useState({});
   const [relationships, setRelationships] = useState([]);
-  const [sharedSession, setSharedSession] = useState(null);     // active shared session doc
-  const [joinableSession, setJoinableSession] = useState(null); // pending invite for current user
-  const [pendingReconciliation, setPendingReconciliation] = useState(null); // { entries, sessions, day }
-  const [showShareSplit, setShowShareSplit] = useState(null);   // split to share via modal
+  const [sharedSession, setSharedSession] = useState(null);
+  const [joinableSession, setJoinableSession] = useState(null);
+  const [pendingReconciliation, setPendingReconciliation] = useState(null);
 
   const currentUser  = viewingUser || user;
   const isReadOnly   = !!viewingUser;
   const otherUser    = USERS.find(u => u !== user);
-  const trainingPartners = relationships
-    .filter(r => r.type === "training-partner")
-    .flatMap(r => r.users)
-    .filter(u => u !== user);
 
   // Derived from active user's splits doc
   const userDoc      = splitsData[currentUser] || { activeSplitId: null, splits: [] };
@@ -1919,22 +2015,34 @@ export default function App() {
     await fbSaveSettings(u, next);
   };
 
-  // Start a shared session with a training partner for the current day
-  const handleStartSharedSession = async (partner) => {
-    if (!activeDay || !activeSplit) return;
-    const dayExercises = (activeProgram[activeDay]?.exercises || []);
+  // Delete a split from the current user's program
+  const handleDeleteSplit = (splitId) => {
+    setSplitsData(prev => {
+      const ud = prev[user] || { activeSplitId: null, splits: [] };
+      const splits = ud.splits.filter(s => s.id !== splitId);
+      const activeSplitId = ud.activeSplitId === splitId ? (splits[0]?.id || null) : ud.activeSplitId;
+      const newDoc = { ...ud, activeSplitId, splits };
+      fbSaveSplits(user, newDoc);
+      return { ...prev, [user]: newDoc };
+    });
+  };
+
+  // Start a shared session for a specific day with any partner
+  const handleStartSessionWith = async (partner, dayKey) => {
+    if (!activeSplit) return;
+    const dayExercises = (activeProgram[dayKey]?.exercises || []);
     const id = await fbCreateSharedSession({
       initiator: user,
-      invitees: [partner],
-      day: activeDay,
+      invitees: [canonicalName(partner)],
+      day: dayKey,
       splitName: activeSplit.name,
       exercises: dayExercises,
       status: "pending",
     });
     if (id) {
-      setSharedSession({ id, initiator: user, invitees: [partner], day: activeDay, exercises: dayExercises, status: "active" });
+      setSharedSession({ id, initiator: user, invitees: [canonicalName(partner)], day: dayKey, exercises: dayExercises, status: "active" });
       await fbUpdateSharedSession(id, { status: "active" });
-      setActiveDay(activeDay);
+      setActiveDay(dayKey);
       setScreen("workout");
     }
   };
@@ -1981,9 +2089,9 @@ export default function App() {
     setScreen("dayselect");
   };
 
-  // Share a split as a one-time template copy to another user
-  const handleShareSplit = async (split, targetUser) => {
-    await fbShareSplitAsTemplate(user, split, targetUser);
+  // Share a split as a one-time template copy to any user (from PartnerSessionModal)
+  const handleShareSplitWith = async (targetUser, split) => {
+    await fbShareSplitAsTemplate(user, split, canonicalName(targetUser));
   };
 
   const font = <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />;
@@ -2005,7 +2113,7 @@ export default function App() {
         onCreateSplit={name => { handleCreateSplit(name); setScreen("dayselect"); }}
         onSettings={() => setScreen("settings")}
         onPerformance={() => setScreen("performance")}
-        onShareSplit={split => setShowShareSplit(split)}
+        onDeleteSplit={handleDeleteSplit}
       />
     </div>
   );
@@ -2025,8 +2133,9 @@ export default function App() {
         onEditor={() => setScreen("editor")}
         onReorderDays={handleReorderDays}
         onBack={() => setScreen("home")}
-        trainingPartners={trainingPartners}
-        onStartSharedSession={handleStartSharedSession}
+        currentUser={user}
+        onShareSplitWith={handleShareSplitWith}
+        onStartSessionWith={handleStartSessionWith}
         joinableSession={joinableSession}
         onJoinSharedSession={handleJoinSharedSession}
       />
@@ -2080,15 +2189,6 @@ export default function App() {
         />
       )}
 
-      {/* Share split modal */}
-      {showShareSplit && (
-        <ShareSplitModal
-          split={showShareSplit}
-          currentUser={user}
-          onShare={handleShareSplit}
-          onClose={() => setShowShareSplit(null)}
-        />
-      )}
     </div>
   );
 }
