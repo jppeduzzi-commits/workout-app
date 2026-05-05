@@ -239,6 +239,46 @@ async function migrateExerciseNotes(userName, splitsDoc) {
   return newDoc;
 }
 
+// Restores coaching notes for Josh and AJ from the programs/Aj document (which still has notes)
+async function restoreExerciseNotes(userName, splitsDoc) {
+  if (!USERS.includes(userName)) return splitsDoc;
+  const flag = `stack_notes_restored_${userName}`;
+  if (localStorage.getItem(flag)) return splitsDoc;
+  try {
+    const snap = await getDoc(doc(db, "programs", "Aj"));
+    if (!snap.exists()) { localStorage.setItem(flag, "1"); return splitsDoc; }
+    const ajData = snap.data();
+    const ajDoc = Array.isArray(ajData.splits) ? ajData : legacyToSplitsDoc(ajData);
+    const notesById = {};
+    for (const split of (ajDoc.splits || [])) {
+      for (const dayData of Object.values(split.program || {})) {
+        for (const ex of (dayData.exercises || [])) {
+          if (ex.id && ex.notes) notesById[ex.id] = ex.notes;
+        }
+      }
+    }
+    if (Object.keys(notesById).length === 0) { localStorage.setItem(flag, "1"); return splitsDoc; }
+    let changed = false;
+    const newSplits = splitsDoc.splits.map(split => {
+      const newProgram = {};
+      for (const [dk, dayData] of Object.entries(split.program || {})) {
+        const exercises = (dayData.exercises || []).map(ex => {
+          const note = notesById[ex.id];
+          if (note && !ex.notes) { changed = true; return { ...ex, notes: note }; }
+          return ex;
+        });
+        newProgram[dk] = { ...dayData, exercises };
+      }
+      return { ...split, program: newProgram };
+    });
+    localStorage.setItem(flag, "1");
+    if (!changed) return splitsDoc;
+    const newDoc = { ...splitsDoc, splits: newSplits };
+    await fbSaveSplits(userName, newDoc);
+    return newDoc;
+  } catch(e) { console.error("notes restore error", e); localStorage.setItem(flag, "1"); return splitsDoc; }
+}
+
 async function fbLoadSplits(user, isNewUser = false) {
   try {
     const snap = await getDoc(doc(db, "programs", user));
@@ -2062,11 +2102,14 @@ export default function App() {
     setLoadingSplits(true);
     const isNewUser = !USERS.includes(currentUser);
     Promise.all([fbLoadSplits(currentUser, isNewUser), fbLoadSettings(currentUser)]).then(async ([sd, s]) => {
-      const migrated = await migrateExerciseNotes(currentUser, sd);
-      setSplitsData(prev => ({ ...prev, [currentUser]: migrated }));
+      let migrated = sd;
+      try { migrated = await migrateExerciseNotes(currentUser, sd); } catch(e) { console.error("migration error", e); }
+      let restored = migrated;
+      try { restored = await restoreExerciseNotes(currentUser, migrated); } catch(e) { console.error("restore error", e); }
+      setSplitsData(prev => ({ ...prev, [currentUser]: restored }));
       setUserSettings(prev => ({ ...prev, [currentUser]: s }));
       setLoadingSplits(false);
-    });
+    }).catch(e => { console.error("load error", e); setLoadingSplits(false); });
   }, [currentUser]);
 
   // Load relationships + seed Josh↔AJ when logged-in user is known
