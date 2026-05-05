@@ -191,8 +191,10 @@ function makeRows(ex) {
 async function fbLoadSessions(user, dayKey) {
   try {
     const snap = await getDoc(doc(db, "sessions", `${user}_${dayKey}`));
-    return snap.exists() ? (snap.data().sessions || []) : [];
-  } catch { return []; }
+    const result = snap.exists() ? (snap.data().sessions || []) : [];
+    console.log(`[sessions] ${user}_${dayKey}: ${snap.exists() ? result.length + " sessions" : "DOCUMENT MISSING"}`);
+    return result;
+  } catch(e) { console.error(`[sessions] ${user}_${dayKey} ERROR:`, e.message); return []; }
 }
 async function fbSaveSessions(user, dayKey, sessions) {
   try { await setDoc(doc(db, "sessions", `${user}_${dayKey}`), { sessions }); } catch(e) { console.error(e); }
