@@ -1020,6 +1020,8 @@ function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onVie
     setLoading(true); setCurrent({});
     Promise.all([fbLoadSessions(user, activeDay), fbLoadDraft(user, activeDay)]).then(([s, { draft, savedAt }]) => {
       setSessions(s);
+      setAutoLoggedMsg(`[diag] user="${user}" day="${activeDay}" sessions=${s.length}`);
+      setTimeout(() => setAutoLoggedMsg(""), 8000);
       const hasMeaningfulData = Object.values(draft).some(e => e?.sets?.some(s => s.weight || s.reps || s.laps));
       const thresholdMs = (autoLogHours || 4) * 3600000;
       const shouldAutoLog = !readOnly && autoLog !== false && savedAt && hasMeaningfulData && (Date.now() - savedAt) > thresholdMs;
