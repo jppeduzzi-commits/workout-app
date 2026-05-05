@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { db, auth } from "./firebase";
-import { doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, collection, query, where, getDocs, addDoc, updateDoc, onSnapshot } from "firebase/firestore";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 
 const USERS = ["Josh", "AJ"];
@@ -190,11 +190,11 @@ function makeRows(ex) {
 
 async function fbLoadSessions(user, dayKey) {
   try {
-    const snap = await getDoc(doc(db, "sessions", `${user}_${dayKey}`));
+    const snap = await getDocFromServer(doc(db, "sessions", `${user}_${dayKey}`));
     const result = snap.exists() ? (snap.data().sessions || []) : [];
     console.log(`[sessions] ${user}_${dayKey}: ${snap.exists() ? result.length + " sessions" : "DOCUMENT MISSING"}`);
     return result;
-  } catch(e) { console.error(`[sessions] ${user}_${dayKey} ERROR:`, e.message); return []; }
+  } catch(e) { console.error(`[sessions] ${user}_${dayKey} ERROR:`, e.message); return [e.message]; }
 }
 async function fbSaveSessions(user, dayKey, sessions) {
   try { await setDoc(doc(db, "sessions", `${user}_${dayKey}`), { sessions }); } catch(e) { console.error(e); }
@@ -1019,8 +1019,9 @@ function WorkoutScreen({ user, readOnly, program, days, onBack, otherUser, onVie
   useEffect(() => {
     setLoading(true); setCurrent({});
     Promise.all([fbLoadSessions(user, activeDay), fbLoadDraft(user, activeDay)]).then(([s, { draft, savedAt }]) => {
-      setSessions(s);
-      setAutoLoggedMsg(`[diag] user="${user}" day="${activeDay}" sessions=${s.length}`);
+      const errMsg = s.length === 1 && typeof s[0] === "string" ? s[0] : null;
+      setSessions(errMsg ? [] : s);
+      setAutoLoggedMsg(errMsg ? `[ERR] ${errMsg}` : `[diag] user="${user}" day="${activeDay}" sessions=${s.length}`);
       setTimeout(() => setAutoLoggedMsg(""), 8000);
       const hasMeaningfulData = Object.values(draft).some(e => e?.sets?.some(s => s.weight || s.reps || s.laps));
       const thresholdMs = (autoLogHours || 4) * 3600000;
