@@ -3,10 +3,9 @@ import { auth } from "./firebase";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { newSplitId } from "./constants";
 import {
-  fbLoadProfile, fbSaveProfile,
-  fbRegisterUsername, fbLookupUidByName,
-  fbLoadSplits, fbSaveSplit, fbDeleteSplit,
-  fbPushSplitToUser, fbMigrateFromLegacy,
+  fbLoadSplitsForUser, fbSaveUserMeta,
+  fbSaveSplit, fbDeleteSplit,
+  fbPushSplitToUser, fbRegisterUsername,
 } from "./db";
 import OnboardScreen from "./components/OnboardScreen";
 import HomeScreen from "./components/HomeScreen";
@@ -17,13 +16,11 @@ import EditorScreen from "./components/EditorScreen";
 import WorkoutScreen from "./components/WorkoutScreen";
 
 const font = <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />;
-
 const LS_NAME = "stack_user_name";
-const LS_UID  = "stack_uid";
+const can = n => n.trim().charAt(0).toUpperCase() + n.trim().slice(1).toLowerCase();
 
 export default function App() {
   const [screen, setScreen]               = useState("loading");
-  const [firebaseUid, setFirebaseUid]     = useState(null);
   const [userName, setUserName]           = useState(null);
   const [splits, setSplits]               = useState([]);
   const [activeSplitId, setActiveSplitId] = useState(null);
@@ -35,90 +32,59 @@ export default function App() {
   const activeProgram = activeSplit?.program || {};
   const activeDays    = activeSplit?.days || [];
 
-  const applyProfile = (profile) => {
-    setActiveSplitId(profile.activeSplitId || null);
-    setSettings({
-      showRIR:      profile.showRIR !== false,
-      autoLog:      profile.autoLog !== false,
-      autoLogHours: profile.autoLogHours || 4,
-    });
-  };
-
-  // Anonymous auth + profile load
+  // Load splits + settings whenever we know the user's name
   useEffect(() => {
-    const cachedName = localStorage.getItem(LS_NAME);
-    const cachedUid  = localStorage.getItem(LS_UID);
+    if (!userName) return;
+    setLoadingSplits(true);
+    fbLoadSplitsForUser(userName).then(({ splits: s, activeSplitId: id, settings: st }) => {
+      setSplits(s);
+      setActiveSplitId(id);
+      if (st) setSettings(st);
+      setLoadingSplits(false);
+    });
+  }, [userName]);
 
-    // Fast path: show home immediately if we have a cached session
-    if (cachedName && cachedUid) {
-      setUserName(cachedName);
-      setFirebaseUid(cachedUid);
+  // Auth: anonymous Firebase auth just for Firestore security rules.
+  // User identity comes from localStorage name, NOT from the Firebase UID.
+  useEffect(() => {
+    const cached = localStorage.getItem(LS_NAME);
+    if (cached) {
+      setUserName(can(cached));
       setScreen("home");
     }
 
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+    const unsub = onAuthStateChanged(auth, fbUser => {
       if (fbUser) {
-        setFirebaseUid(fbUser.uid);
-        localStorage.setItem(LS_UID, fbUser.uid);
-
-        const profile = await fbLoadProfile(fbUser.uid);
-        if (profile?.name) {
-          setUserName(profile.name);
-          applyProfile(profile);
-          localStorage.setItem(LS_NAME, profile.name);
-          setScreen("home");
-        } else if (!cachedName) {
-          setScreen("onboard");
-        }
-        // If cachedName exists but no profile found, profile write likely failed —
-        // stay on home and let the user interact; splits load will return empty.
+        const name = localStorage.getItem(LS_NAME);
+        if (name) fbRegisterUsername(fbUser.uid, name);
+        if (!cached) setScreen(s => s === "loading" ? "onboard" : s);
       } else {
-        signInAnonymously(auth).catch(() => {
-          if (!cachedName) setScreen("onboard");
-        });
+        signInAnonymously(auth);
       }
     });
 
-    const timeout = setTimeout(() => setScreen(s => s === "loading" ? "onboard" : s), 6000);
+    const timeout = setTimeout(() => setScreen(s => s === "loading" ? "onboard" : s), 5000);
     return () => { unsub(); clearTimeout(timeout); };
   }, []);
 
-  // Load splits whenever uid is set
-  useEffect(() => {
-    if (!firebaseUid) return;
-    setLoadingSplits(true);
-    fbLoadSplits(firebaseUid).then(s => {
-      setSplits(s);
-      setLoadingSplits(false);
-    });
-  }, [firebaseUid]);
-
-  const handleOnboard = async (name) => {
-    await fbMigrateFromLegacy(firebaseUid, name);
-    const [profile, newSplits] = await Promise.all([
-      fbLoadProfile(firebaseUid),
-      fbLoadSplits(firebaseUid),
-    ]);
-    const resolvedName = profile?.name || name;
-    setSplits(newSplits);
-    if (profile) applyProfile(profile);
-    setUserName(resolvedName);
-    localStorage.setItem(LS_NAME, resolvedName);
+  const handleOnboard = (name) => {
+    const c = can(name);
+    localStorage.setItem(LS_NAME, c);
+    setUserName(c);  // triggers split load effect, which migrates old data automatically
     setScreen("home");
   };
 
-  const handleChangeName = async (name) => {
-    await fbSaveProfile(firebaseUid, { name });
-    await fbRegisterUsername(firebaseUid, name);
-    setUserName(name);
-    localStorage.setItem(LS_NAME, name);
+  const handleChangeName = (name) => {
+    const c = can(name);
+    localStorage.setItem(LS_NAME, c);
+    setUserName(c);
     setScreen("home");
   };
 
   const handleSwitchSplit = (splitId) => {
     setActiveSplitId(splitId);
     setActiveDay(null);
-    fbSaveProfile(firebaseUid, { activeSplitId: splitId });
+    fbSaveUserMeta(userName, { activeSplitId: splitId });
   };
 
   const handleCreateSplit = (name) => {
@@ -127,12 +93,12 @@ export default function App() {
     setSplits(prev => [...prev, s]);
     setActiveSplitId(id);
     setActiveDay(null);
-    fbSaveSplit(firebaseUid, s);
-    fbSaveProfile(firebaseUid, { activeSplitId: id });
+    fbSaveSplit(userName, s);
+    fbSaveUserMeta(userName, { activeSplitId: id });
   };
 
   const handleSaveSplit = async (updatedSplit) => {
-    await fbSaveSplit(firebaseUid, updatedSplit);
+    await fbSaveSplit(userName, updatedSplit);
     setSplits(prev => prev.map(s => s.id === updatedSplit.id ? updatedSplit : s));
   };
 
@@ -140,7 +106,7 @@ export default function App() {
     if (!activeSplit) return;
     const updated = { ...activeSplit, days: newDays };
     setSplits(prev => prev.map(s => s.id === activeSplit.id ? updated : s));
-    fbSaveSplit(firebaseUid, updated);
+    fbSaveSplit(userName, updated);
   };
 
   const handleDeleteSplit = (splitId) => {
@@ -149,26 +115,23 @@ export default function App() {
     if (activeSplitId === splitId) {
       const next = remaining[0]?.id || null;
       setActiveSplitId(next);
-      fbSaveProfile(firebaseUid, { activeSplitId: next });
+      fbSaveUserMeta(userName, { activeSplitId: next });
     }
-    fbDeleteSplit(firebaseUid, splitId);
+    fbDeleteSplit(userName, splitId);
   };
 
-  const handleUpdateSetting = async (key, val) => {
+  const handleUpdateSetting = (key, val) => {
     const next = { ...settings, [key]: val };
     setSettings(next);
-    await fbSaveProfile(firebaseUid, { [key]: val });
+    fbSaveUserMeta(userName, { [key]: val });
   };
 
   const handlePushSplitToUser = async (targetName, split) => {
-    const targetUid = await fbLookupUidByName(targetName);
-    if (!targetUid) return alert(`${targetName} hasn't signed into Stack yet.`);
-    await fbPushSplitToUser(targetUid, split);
+    await fbPushSplitToUser(targetName, split);
   };
 
   const handleSignOut = () => {
     localStorage.removeItem(LS_NAME);
-    localStorage.removeItem(LS_UID);
     window.location.reload();
   };
 
@@ -227,9 +190,8 @@ export default function App() {
   if (screen === "performance") return (
     <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>{font}
       <PerformanceScreen
-        uid={firebaseUid}
-        splitId={activeSplit?.id || null}
         userName={userName}
+        splitId={activeSplit?.id || null}
         program={activeProgram}
         onBack={() => setScreen("home")}
       />
@@ -252,9 +214,8 @@ export default function App() {
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100dvh", fontFamily:"Barlow,sans-serif", color:"#bbb" }}>Loading...</div>
       ) : (
         <WorkoutScreen
-          uid={firebaseUid}
-          splitId={activeSplit?.id || null}
           userName={userName}
+          splitId={activeSplit?.id || null}
           program={activeProgram}
           days={activeDays}
           showRIR={settings.showRIR}

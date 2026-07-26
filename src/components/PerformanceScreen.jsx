@@ -3,7 +3,7 @@ import { inp, fmtDate } from "../constants";
 import { calc1RM } from "../utils";
 import { fbLoadSessions } from "../db";
 
-export default function PerformanceScreen({ uid, splitId, userName, program, onBack }) {
+export default function PerformanceScreen({ userName, splitId, program, onBack }) {
   const [tab, setTab] = useState("prs");
   const [allSessions, setAllSessions] = useState({});
   const [loading, setLoading] = useState(true);
@@ -11,16 +11,16 @@ export default function PerformanceScreen({ uid, splitId, userName, program, onB
   const [calcReps, setCalcReps] = useState("");
 
   useEffect(() => {
-    if (!uid || !splitId) { setLoading(false); return; }
+    if (!userName || !splitId) { setLoading(false); return; }
     setLoading(true);
     const dayKeys = Object.keys(program);
-    Promise.all(dayKeys.map(dk => fbLoadSessions(uid, splitId, dk).then(s => [dk, s]))).then(results => {
+    Promise.all(dayKeys.map(dk => fbLoadSessions(userName, splitId, dk).then(s => [dk, s]))).then(results => {
       const map = {};
       results.forEach(([dk, s]) => { map[dk] = s; });
       setAllSessions(map);
       setLoading(false);
     });
-  }, [uid, splitId, program]);
+  }, [userName, splitId, program]);
 
   const prs = [];
   Object.keys(program).forEach(dk => {

@@ -4,7 +4,7 @@ import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft 
 import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
 
-export default function WorkoutScreen({ uid, splitId, userName, program, days, onBack, initDay, showRIR, autoLog, autoLogHours }) {
+export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, showRIR, autoLog, autoLogHours }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -20,11 +20,11 @@ export default function WorkoutScreen({ uid, splitId, userName, program, days, o
   const lastSession = sessions[sessions.length - 1] || null;
 
   useEffect(() => {
-    if (!uid || !splitId) return;
+    if (!userName || !splitId) return;
     setLoading(true); setCurrent({});
     Promise.all([
-      fbLoadSessions(uid, splitId, activeDay),
-      fbLoadDraft(uid, splitId, activeDay),
+      fbLoadSessions(userName, splitId, activeDay),
+      fbLoadDraft(userName, splitId, activeDay),
     ]).then(([s, { draft, savedAt }]) => {
       setSessions(s);
       const hasMeaningfulData = Object.values(draft).some(e => e?.sets?.some(s => s.weight || s.reps || s.laps));
@@ -34,8 +34,8 @@ export default function WorkoutScreen({ uid, splitId, userName, program, days, o
         const d = new Date(savedAt);
         const dateStr = `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
         const nextSessions = [...s, { date: dateStr, entries: draft }];
-        fbSaveSessions(uid, splitId, activeDay, nextSessions);
-        fbClearDraft(uid, splitId, activeDay);
+        fbSaveSessions(userName, splitId, activeDay, nextSessions);
+        fbClearDraft(userName, splitId, activeDay);
         setSessions(nextSessions);
         const hoursAgo = Math.round((Date.now() - savedAt) / 3600000);
         setAutoLoggedMsg(`✓ Auto-logged ${activeDay} from ${hoursAgo}h ago`);
@@ -45,21 +45,21 @@ export default function WorkoutScreen({ uid, splitId, userName, program, days, o
       }
       setLoading(false);
     });
-  }, [uid, splitId, activeDay]);
+  }, [userName, splitId, activeDay]);
 
   const handleChange = useCallback((exId, val) => {
     setCurrent(c => {
       const next = { ...c, [exId]: val };
       clearTimeout(autoSaveTimer.current);
       autoSaveTimer.current = setTimeout(async () => {
-        await fbSaveDraft(uid, splitId, activeDay, next);
+        await fbSaveDraft(userName, splitId, activeDay, next);
         setAutoSaved(true);
         setTimeout(() => setAutoSaved(false), 1500);
       }, 800);
       return next;
     });
     setSaved(false);
-  }, [uid, splitId, activeDay]);
+  }, [userName, splitId, activeDay]);
 
   const getPrev = (id, name) => {
     for (let i = sessions.length - 1; i >= 0; i--) {
@@ -81,8 +81,8 @@ export default function WorkoutScreen({ uid, splitId, userName, program, days, o
   const handleSave = async () => {
     setSaving(true);
     const next = [...sessions, { date: TODAY(), entries: current }];
-    await fbSaveSessions(uid, splitId, activeDay, next);
-    await fbClearDraft(uid, splitId, activeDay);
+    await fbSaveSessions(userName, splitId, activeDay, next);
+    await fbClearDraft(userName, splitId, activeDay);
     setSessions(next); setCurrent({});
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2500);
