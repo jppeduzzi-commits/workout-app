@@ -155,7 +155,7 @@ export default function App() {
         onSettings={() => setScreen("settings")}
         onPerformance={() => setScreen("performance")}
         onDeleteSplit={handleDeleteSplit}
-        onPushSplit={handlePushSplitToUser}
+        onShareSplit={handlePushSplitToUser}
       />
     </div>
   );

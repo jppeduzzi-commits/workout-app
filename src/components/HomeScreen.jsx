@@ -1,11 +1,11 @@
 import { useState } from "react";
+import ShareSplitModal from "./ShareSplitModal";
 
-export default function HomeScreen({ userName, splits, activeSplitId, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit, onPushSplit }) {
+export default function HomeScreen({ userName, splits, activeSplitId, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit, onShareSplit }) {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [pushingId, setPushingId] = useState(null);
-  const [pushDone, setPushDone] = useState(null);
+  const [sharingSplit, setSharingSplit] = useState(null);
 
   const submit = () => {
     const n = newName.trim();
@@ -13,14 +13,6 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
     onCreateSplit(n);
     setShowNew(false);
     setNewName("");
-  };
-
-  const handlePush = async (split) => {
-    setPushingId(split.id);
-    await onPushSplit("aj", split);
-    setPushingId(null);
-    setPushDone(split.id);
-    setTimeout(() => setPushDone(d => d === split.id ? null : d), 2500);
   };
 
   return (
@@ -47,8 +39,6 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
         {splits.map(split => {
           const isActive = split.id === activeSplitId;
           const isConfirming = confirmDelete === split.id;
-          const isPushing = pushingId === split.id;
-          const isDone = pushDone === split.id;
           return (
             <div key={split.id} style={{ marginBottom:10 }}>
               <div style={{ display:"flex", alignItems:"stretch", gap:8 }}>
@@ -77,10 +67,9 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
                 </button>
               </div>
               <button
-                onClick={() => handlePush(split)}
-                disabled={isPushing}
-                style={{ display:"block", width:"100%", marginTop:6, padding:"9px 20px", background: isDone ? "#f0fdf4" : "#fff", border: isDone ? "1.5px solid #bbf7d0" : "1.5px solid #e8e8e8", borderRadius:10, cursor:isPushing?"wait":"pointer", textAlign:"left", fontFamily:"inherit", fontSize:12, fontWeight:700, color: isDone ? "#16a34a" : "#888" }}>
-                {isDone ? "✓ Pushed to AJ" : isPushing ? "Pushing..." : "Push to AJ →"}
+                onClick={() => setSharingSplit(split)}
+                style={{ display:"block", width:"100%", marginTop:6, padding:"9px 20px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:10, cursor:"pointer", textAlign:"left", fontFamily:"inherit", fontSize:12, fontWeight:700, color:"#888" }}>
+                Share →
               </button>
             </div>
           );
@@ -117,6 +106,15 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
         </button>
 
       </div>
+
+      {sharingSplit && (
+        <ShareSplitModal
+          split={sharingSplit}
+          currentUser={userName}
+          onShare={(split, targetName) => onShareSplit(targetName, split)}
+          onClose={() => setSharingSplit(null)}
+        />
+      )}
     </div>
   );
 }
