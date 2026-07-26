@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { doc, getDoc, getDocFromServer, setDoc, updateDoc, getDocs, deleteDoc, collection } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, getDocs, deleteDoc, collection } from "firebase/firestore";
 import { copy } from "./constants";
 
 // ── User Profile ──────────────────────────────────────────────────────────────
@@ -80,6 +80,85 @@ export async function fbSaveDraft(uid, splitId, dayKey, draft) {
 
 export async function fbClearDraft(uid, splitId, dayKey) {
   try { await setDoc(doc(db, "users", uid, "splits", splitId, "drafts", dayKey), { draft: {} }); } catch (e) { console.error(e); }
+}
+
+// ── One-time Migration from Legacy Structure ──────────────────────────────────
+// Old: programs/{name}, sessions/{name}_{dayKey}, drafts/{name}_{dayKey}, settings/{name}
+// New: users/{uid}/splits/{splitId}/sessions/{dayKey} etc.
+// Runs once on first onboard. Returns true if old data was found and migrated.
+
+export async function fbMigrateFromLegacy(uid, name) {
+  const canonical = name.trim().charAt(0).toUpperCase() + name.trim().slice(1).toLowerCase();
+  try {
+    const progSnap = await getDocFromServer(doc(db, "programs", canonical));
+
+    if (!progSnap.exists()) {
+      // No legacy data — write a fresh profile
+      await setDoc(doc(db, "users", uid), {
+        name: canonical, activeSplitId: null,
+        showRIR: true, autoLog: true, autoLogHours: 4,
+        createdAt: new Date().toISOString(),
+      });
+      await setDoc(doc(db, "usernames", canonical.toLowerCase()), { uid });
+      return false;
+    }
+
+    const data = progSnap.data();
+    let splitsDoc;
+    if (Array.isArray(data.splits)) {
+      splitsDoc = data;
+    } else {
+      const program = data.program || data;
+      const days = Object.keys(program).filter(k => program[k]?.exercises);
+      splitsDoc = {
+        activeSplitId: "default",
+        splits: [{ id: "default", name: "Athletic Hypertrophy Split", days, program: copy(program) }],
+      };
+    }
+
+    const settingsSnap = await getDoc(doc(db, "settings", canonical));
+    const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+
+    await setDoc(doc(db, "users", uid), {
+      name: canonical,
+      activeSplitId: splitsDoc.activeSplitId || splitsDoc.splits[0]?.id || null,
+      showRIR: settings.showRIR !== false,
+      autoLog: settings.autoLog !== false,
+      autoLogHours: settings.autoLogHours || 4,
+      createdAt: new Date().toISOString(),
+    });
+    await setDoc(doc(db, "usernames", canonical.toLowerCase()), { uid });
+
+    for (const split of splitsDoc.splits) {
+      await setDoc(doc(db, "users", uid, "splits", split.id), split);
+      for (const dayKey of (split.days || [])) {
+        const sessSnap = await getDoc(doc(db, "sessions", `${canonical}_${dayKey}`));
+        if (sessSnap.exists()) {
+          const sessions = sessSnap.data().sessions || [];
+          if (sessions.length > 0)
+            await setDoc(doc(db, "users", uid, "splits", split.id, "sessions", dayKey), { sessions });
+        }
+        const draftSnap = await getDoc(doc(db, "drafts", `${canonical}_${dayKey}`));
+        if (draftSnap.exists() && draftSnap.data().draft)
+          await setDoc(doc(db, "users", uid, "splits", split.id, "drafts", dayKey), {
+            draft: draftSnap.data().draft, savedAt: draftSnap.data().savedAt || null,
+          });
+      }
+    }
+
+    return true;
+  } catch (e) {
+    console.error("fbMigrateFromLegacy:", e);
+    try {
+      await setDoc(doc(db, "users", uid), {
+        name: canonical, activeSplitId: null,
+        showRIR: true, autoLog: true, autoLogHours: 4,
+        createdAt: new Date().toISOString(),
+      });
+      await setDoc(doc(db, "usernames", canonical.toLowerCase()), { uid });
+    } catch {}
+    return false;
+  }
 }
 
 // ── Push Split to Friend ──────────────────────────────────────────────────────

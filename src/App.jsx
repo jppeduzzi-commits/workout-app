@@ -6,7 +6,7 @@ import {
   fbLoadProfile, fbSaveProfile,
   fbRegisterUsername, fbLookupUidByName,
   fbLoadSplits, fbSaveSplit, fbDeleteSplit,
-  fbPushSplitToUser,
+  fbPushSplitToUser, fbMigrateFromLegacy,
 } from "./db";
 import OnboardScreen from "./components/OnboardScreen";
 import HomeScreen from "./components/HomeScreen";
@@ -69,13 +69,21 @@ export default function App() {
   }, [firebaseUid]);
 
   const handleOnboard = async (name) => {
-    await fbSaveProfile(firebaseUid, {
-      name, activeSplitId: null,
-      showRIR: true, autoLog: true, autoLogHours: 4,
-      createdAt: new Date().toISOString(),
+    // Migrate old data if it exists, otherwise creates a fresh profile
+    await fbMigrateFromLegacy(firebaseUid, name);
+    // Reload profile and splits in case migration wrote data
+    const [profile, newSplits] = await Promise.all([
+      fbLoadProfile(firebaseUid),
+      fbLoadSplits(firebaseUid),
+    ]);
+    setSplits(newSplits);
+    setActiveSplitId(profile?.activeSplitId || null);
+    if (profile) setSettings({
+      showRIR: profile.showRIR !== false,
+      autoLog: profile.autoLog !== false,
+      autoLogHours: profile.autoLogHours || 4,
     });
-    await fbRegisterUsername(firebaseUid, name);
-    setUserName(name);
+    setUserName(profile?.name || name);
     setScreen("home");
   };
 
