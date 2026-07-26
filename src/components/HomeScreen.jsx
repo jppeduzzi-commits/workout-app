@@ -1,11 +1,9 @@
 import { useState } from "react";
-import ShareSplitModal from "./ShareSplitModal";
 
-export default function HomeScreen({ userName, splits, activeSplitId, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit, onShareSplit }) {
+export default function HomeScreen({ userName, splits, activeSplitId, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit }) {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [sharingSplit, setSharingSplit] = useState(null);
 
   const submit = () => {
     const n = newName.trim();
@@ -66,11 +64,6 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
                   {isConfirming ? "Remove?" : "✕"}
                 </button>
               </div>
-              <button
-                onClick={() => setSharingSplit(split)}
-                style={{ display:"block", width:"100%", marginTop:6, padding:"9px 20px", background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:10, cursor:"pointer", textAlign:"left", fontFamily:"inherit", fontSize:12, fontWeight:700, color:"#888" }}>
-                Share →
-              </button>
             </div>
           );
         })}
@@ -106,15 +99,6 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
         </button>
 
       </div>
-
-      {sharingSplit && (
-        <ShareSplitModal
-          split={sharingSplit}
-          currentUser={userName}
-          onShare={(split, targetName) => onShareSplit(targetName, split)}
-          onClose={() => setSharingSplit(null)}
-        />
-      )}
     </div>
   );
 }

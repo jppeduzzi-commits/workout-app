@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { DAY_META } from "../constants";
+import ShareSplitModal from "./ShareSplitModal";
 
-export default function DaySelectScreen({ activeSplit, activeDays, activeProgram, onSelectDay, onEditor, onReorderDays, onBack }) {
+export default function DaySelectScreen({ activeSplit, activeDays, activeProgram, userName, onSelectDay, onEditor, onReorderDays, onBack, onShareSplit }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
+  const [sharing, setSharing] = useState(false);
   const dayRefs = useRef({});
 
   useEffect(() => {
@@ -43,9 +45,17 @@ export default function DaySelectScreen({ activeSplit, activeDays, activeProgram
 
         <button onClick={onBack} style={{ background:"none", border:"none", color:"#888", fontSize:13, fontWeight:800, cursor:"pointer", padding:"0 0 28px 0", fontFamily:"inherit", letterSpacing:"0.06em", display:"block" }}>← STACK</button>
 
-        <div style={{ marginBottom:28 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>Today's workout</div>
-          <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.02em", lineHeight:1.1 }}>{activeSplit?.name || "No split selected"}</div>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:28 }}>
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>Today's workout</div>
+            <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.02em", lineHeight:1.1 }}>{activeSplit?.name || "No split selected"}</div>
+          </div>
+          {activeSplit && (
+            <button onClick={() => setSharing(true)}
+              style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:"4px 0 0 0", flexShrink:0 }}>
+              📤
+            </button>
+          )}
         </div>
 
         {activeDays.length > 0 ? displayDays.map(dk => {
@@ -78,6 +88,15 @@ export default function DaySelectScreen({ activeSplit, activeDays, activeProgram
         </button>
 
       </div>
+
+      {sharing && activeSplit && (
+        <ShareSplitModal
+          split={activeSplit}
+          currentUser={userName}
+          onShare={(split, targetName) => onShareSplit(targetName, split)}
+          onClose={() => setSharing(false)}
+        />
+      )}
     </div>
   );
 }

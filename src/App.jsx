@@ -155,7 +155,6 @@ export default function App() {
         onSettings={() => setScreen("settings")}
         onPerformance={() => setScreen("performance")}
         onDeleteSplit={handleDeleteSplit}
-        onShareSplit={handlePushSplitToUser}
       />
     </div>
   );
@@ -179,10 +178,12 @@ export default function App() {
         activeSplit={activeSplit}
         activeDays={activeDays}
         activeProgram={activeProgram}
+        userName={userName}
         onSelectDay={dk => { setActiveDay(dk); setScreen("workout"); }}
         onEditor={() => setScreen("editor")}
         onReorderDays={handleReorderDays}
         onBack={() => setScreen("home")}
+        onShareSplit={handlePushSplitToUser}
       />
     </div>
   );
