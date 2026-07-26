@@ -10,6 +10,9 @@
         ],
         "legacy": [
           "workout-app-dca55"
+        ],
+        "stack-train": [
+          "stack-train"
         ]
       }
     }

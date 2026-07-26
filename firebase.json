@@ -1,7 +1,7 @@
 {
   "hosting": [
     {
-      "target": "stack-training",
+      "target": "stack-train",
       "public": "build",
       "ignore": [
         "firebase.json",
@@ -16,6 +16,22 @@
       ]
     },
     {
+      "target": "stack-training",
+      "public": "public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "redirects": [
+        {
+          "source": "**",
+          "destination": "https://stack-train.web.app",
+          "type": 301
+        }
+      ]
+    },
+    {
       "target": "legacy",
       "public": "public",
       "ignore": [
@@ -26,7 +42,7 @@
       "redirects": [
         {
           "source": "**",
-          "destination": "https://stack-training.web.app",
+          "destination": "https://stack-train.web.app",
           "type": 301
         }
       ]
