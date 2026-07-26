@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "workout-app-dca55"
-  }
+  },
+  "targets": {
+    "workout-app-dca55": {
+      "hosting": {
+        "stack-training": [
+          "stack-training"
+        ],
+        "legacy": [
+          "workout-app-dca55"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
