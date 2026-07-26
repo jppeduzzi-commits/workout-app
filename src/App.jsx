@@ -18,6 +18,9 @@ import WorkoutScreen from "./components/WorkoutScreen";
 
 const font = <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />;
 
+const LS_NAME = "stack_user_name";
+const LS_UID  = "stack_uid";
+
 export default function App() {
   const [screen, setScreen]               = useState("loading");
   const [firebaseUid, setFirebaseUid]     = useState(null);
@@ -28,37 +31,59 @@ export default function App() {
   const [loadingSplits, setLoadingSplits] = useState(false);
   const [activeDay, setActiveDay]         = useState(null);
 
-  const activeSplit  = splits.find(s => s.id === activeSplitId) || splits[0] || null;
+  const activeSplit   = splits.find(s => s.id === activeSplitId) || splits[0] || null;
   const activeProgram = activeSplit?.program || {};
-  const activeDays   = activeSplit?.days || [];
+  const activeDays    = activeSplit?.days || [];
+
+  const applyProfile = (profile) => {
+    setActiveSplitId(profile.activeSplitId || null);
+    setSettings({
+      showRIR:      profile.showRIR !== false,
+      autoLog:      profile.autoLog !== false,
+      autoLogHours: profile.autoLogHours || 4,
+    });
+  };
 
   // Anonymous auth + profile load
   useEffect(() => {
+    const cachedName = localStorage.getItem(LS_NAME);
+    const cachedUid  = localStorage.getItem(LS_UID);
+
+    // Fast path: show home immediately if we have a cached session
+    if (cachedName && cachedUid) {
+      setUserName(cachedName);
+      setFirebaseUid(cachedUid);
+      setScreen("home");
+    }
+
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         setFirebaseUid(fbUser.uid);
+        localStorage.setItem(LS_UID, fbUser.uid);
+
         const profile = await fbLoadProfile(fbUser.uid);
         if (profile?.name) {
           setUserName(profile.name);
-          setActiveSplitId(profile.activeSplitId || null);
-          setSettings({
-            showRIR:      profile.showRIR !== false,
-            autoLog:      profile.autoLog !== false,
-            autoLogHours: profile.autoLogHours || 4,
-          });
+          applyProfile(profile);
+          localStorage.setItem(LS_NAME, profile.name);
           setScreen("home");
-        } else {
+        } else if (!cachedName) {
           setScreen("onboard");
         }
+        // If cachedName exists but no profile found, profile write likely failed —
+        // stay on home and let the user interact; splits load will return empty.
       } else {
-        signInAnonymously(auth).catch(() => setScreen("onboard"));
+        signInAnonymously(auth).catch(() => {
+          if (!cachedName) setScreen("onboard");
+        });
       }
     });
+
     const timeout = setTimeout(() => setScreen(s => s === "loading" ? "onboard" : s), 6000);
     return () => { unsub(); clearTimeout(timeout); };
   }, []);
 
-  // Load splits when uid is available
+  // Load splits whenever uid is set
   useEffect(() => {
     if (!firebaseUid) return;
     setLoadingSplits(true);
@@ -69,21 +94,16 @@ export default function App() {
   }, [firebaseUid]);
 
   const handleOnboard = async (name) => {
-    // Migrate old data if it exists, otherwise creates a fresh profile
     await fbMigrateFromLegacy(firebaseUid, name);
-    // Reload profile and splits in case migration wrote data
     const [profile, newSplits] = await Promise.all([
       fbLoadProfile(firebaseUid),
       fbLoadSplits(firebaseUid),
     ]);
+    const resolvedName = profile?.name || name;
     setSplits(newSplits);
-    setActiveSplitId(profile?.activeSplitId || null);
-    if (profile) setSettings({
-      showRIR: profile.showRIR !== false,
-      autoLog: profile.autoLog !== false,
-      autoLogHours: profile.autoLogHours || 4,
-    });
-    setUserName(profile?.name || name);
+    if (profile) applyProfile(profile);
+    setUserName(resolvedName);
+    localStorage.setItem(LS_NAME, resolvedName);
     setScreen("home");
   };
 
@@ -91,6 +111,7 @@ export default function App() {
     await fbSaveProfile(firebaseUid, { name });
     await fbRegisterUsername(firebaseUid, name);
     setUserName(name);
+    localStorage.setItem(LS_NAME, name);
     setScreen("home");
   };
 
@@ -145,6 +166,12 @@ export default function App() {
     await fbPushSplitToUser(targetUid, split);
   };
 
+  const handleSignOut = () => {
+    localStorage.removeItem(LS_NAME);
+    localStorage.removeItem(LS_UID);
+    window.location.reload();
+  };
+
   if (screen === "loading") return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100dvh", fontFamily:"Barlow,sans-serif", background:"#f5f5f5" }}>
       {font}<div style={{ fontSize:48, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em" }}>STACK</div>
@@ -178,6 +205,7 @@ export default function App() {
         onUpdate={handleUpdateSetting}
         onBack={() => setScreen("home")}
         onChangeName={handleChangeName}
+        onSignOut={handleSignOut}
       />
     </div>
   );

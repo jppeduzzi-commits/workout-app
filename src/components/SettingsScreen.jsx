@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { inp } from "../constants";
 
-export default function SettingsScreen({ userName, settings, onUpdate, onBack, onChangeName }) {
+export default function SettingsScreen({ userName, settings, onUpdate, onBack, onChangeName, onSignOut }) {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(userName);
 
@@ -11,11 +11,7 @@ export default function SettingsScreen({ userName, settings, onUpdate, onBack, o
     onChangeName(trimmed);
   };
 
-  const handleSignOut = () => {
-    localStorage.removeItem("stack_user_name");
-    localStorage.removeItem("stack_uid");
-    window.location.reload();
-  };
+  const handleSignOut = () => onSignOut();
 
   return (
     <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", minHeight:"100dvh", background:"#f5f5f5" }}>
