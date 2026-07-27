@@ -14,6 +14,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
   const [autoSaved, setAutoSaved] = useState(false);
   const [autoLoggedMsg, setAutoLoggedMsg] = useState("");
   const [analysisEx, setAnalysisEx] = useState(null);
+  const [confirmLog, setConfirmLog] = useState(false);
   const autoSaveTimer = useRef(null);
   const programDays = days?.length ? days : Object.keys(program);
   const curDay      = program[activeDay];
@@ -79,6 +80,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
   };
 
   const handleSave = async () => {
+    setConfirmLog(false);
     setSaving(true);
     const next = [...sessions, { date: TODAY(), entries: current }];
     await fbSaveSessions(userName, splitId, activeDay, next);
@@ -156,10 +158,27 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
       </div>
 
       <div style={{ padding:"12px 14px 16px", background:"#fff", borderTop:"1px solid #e8e8e8", flexShrink:0 }}>
-        <button onClick={handleSave} disabled={saving} style={{ width:"100%", padding:14, background:saved?"#16a34a":"#0a0a0a", color:"#fff", border:"none", borderRadius:12, fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:saving?"wait":"pointer", letterSpacing:"0.06em" }}>
+        <button onClick={() => setConfirmLog(true)} disabled={saving} style={{ width:"100%", padding:14, background:saved?"#16a34a":"#0a0a0a", color:"#fff", border:"none", borderRadius:12, fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:saving?"wait":"pointer", letterSpacing:"0.06em" }}>
           {saving ? "SAVING..." : saved ? "✓ SESSION SAVED" : "LOG SESSION"}
         </button>
       </div>
+
+      {confirmLog && (
+        <div onClick={() => setConfirmLog(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:200, display:"flex", alignItems:"flex-end" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", background:"#fff", borderRadius:"18px 18px 0 0", padding:"24px 20px 40px", fontFamily:"Barlow,sans-serif" }}>
+            <div style={{ fontSize:17, fontWeight:900, color:"#0a0a0a", marginBottom:6 }}>Log this session?</div>
+            <div style={{ fontSize:12, color:"#888", marginBottom:20, lineHeight:1.5 }}>
+              This finalizes today's numbers for <strong>{curDay?.label}</strong> and clears your in-progress draft. Once logged, it becomes read-only history.
+            </div>
+            <button onClick={handleSave} style={{ width:"100%", padding:13, background:"#0a0a0a", color:"#fff", border:"none", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:10 }}>
+              Log session
+            </button>
+            <button onClick={() => setConfirmLog(false)} style={{ width:"100%", padding:13, background:"none", border:"1.5px solid #e8e8e8", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:700, color:"#888", cursor:"pointer" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
