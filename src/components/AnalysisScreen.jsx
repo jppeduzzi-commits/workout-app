@@ -1,7 +1,13 @@
+import { useState } from "react";
 import { calc1RM, calcNextSession } from "../utils";
-import { PCTS, fmtDate } from "../constants";
+import { PCTS, fmtDate, inp } from "../constants";
 
 export default function AnalysisScreen({ ex, sessions, onBack }) {
+  const [tab, setTab] = useState("prs");
+  const [calcWeight, setCalcWeight] = useState("");
+  const [calcReps, setCalcReps] = useState("");
+  const calcResult = calc1RM(calcWeight, calcReps, 1);
+
   const isCompound   = ex.exType === "compound";
   const isIsolation  = ex.exType === "isolation";
   const isCarries    = ex.exType === "carries";
@@ -38,8 +44,59 @@ export default function AnalysisScreen({ ex, sessions, onBack }) {
         </div>
       </div>
 
+      <div style={{ display:"flex", gap:6, padding:"10px 14px", background:"#fff", borderBottom:"1px solid #e8e8e8", flexShrink:0 }}>
+        {[{k:"prs",l:"PR Board"},{k:"calc",l:"1RM Calculator"}].map(t => (
+          <button key={t.k} onClick={() => setTab(t.k)} style={{ padding:"6px 14px", background:tab===t.k?"#0a0a0a":"#f5f5f5", color:tab===t.k?"#fff":"#888", border:`1.5px solid ${tab===t.k?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, fontSize:12, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>{t.l}</button>
+        ))}
+      </div>
+
       <div style={{ flex:1, padding:16, overflowY:"auto" }}>
-        {!bestSet ? (
+        {tab === "calc" ? (
+          <div>
+            <div style={{ background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:14, padding:16, marginBottom:14 }}>
+              <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:12 }}>Enter a set · {ex.name}</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:4 }}>
+                <div>
+                  <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:6 }}>WEIGHT (lbs)</label>
+                  <input value={calcWeight} onChange={e=>setCalcWeight(e.target.value)} placeholder="e.g. 225" type="number" style={{ ...inp, fontSize:18, fontWeight:800, padding:"10px 12px" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:6 }}>REPS</label>
+                  <input value={calcReps} onChange={e=>setCalcReps(e.target.value)} placeholder="e.g. 7" type="number" style={{ ...inp, fontSize:18, fontWeight:800, padding:"10px 12px" }} />
+                </div>
+              </div>
+              <div style={{ fontSize:10, color:"#bbb", marginTop:6 }}>Uses Epley formula · assumes ~1 rep in reserve</div>
+            </div>
+
+            {calcResult ? (
+              <div>
+                <div style={{ background:"#0a0a0a", borderRadius:14, padding:"16px 18px", marginBottom:14, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontSize:10, color:"#666", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:4 }}>Estimated 1RM</div>
+                    <div style={{ fontSize:11, color:"#555" }}>{calcWeight}lbs × {calcReps} reps</div>
+                  </div>
+                  <div style={{ fontSize:36, fontWeight:900, color:"#fff" }}>{calcResult}<span style={{ fontSize:16, color:"#888" }}>lbs</span></div>
+                </div>
+                <div style={{ background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:14, padding:16 }}>
+                  <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:12 }}>Working weight targets</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                    {[95,90,85,80,75,70,65].map(pct => (
+                      <div key={pct} style={{ background:"#f5f5f5", borderRadius:10, padding:"12px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <span style={{ fontSize:13, color:"#888", fontWeight:700 }}>{pct}%</span>
+                        <span style={{ fontSize:16, fontWeight:800, color:"#0a0a0a" }}>{Math.round(calcResult * pct / 100)}<span style={{ fontSize:11, color:"#bbb", fontWeight:600 }}>lbs</span></span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign:"center", padding:"40px 20px", color:"#bbb" }}>
+                <div style={{ fontSize:36, marginBottom:8 }}>🧮</div>
+                <div style={{ fontSize:13 }}>Enter a weight and reps above to calculate your estimated 1RM and percentage targets for {ex.name}.</div>
+              </div>
+            )}
+          </div>
+        ) : !bestSet ? (
           <div style={{ textAlign:"center", padding:"60px 20px", color:"#bbb" }}>
             <div style={{ fontSize:40, marginBottom:12 }}>📊</div>
             <div style={{ fontSize:15, fontWeight:700, color:"#888", marginBottom:8 }}>No data yet</div>
