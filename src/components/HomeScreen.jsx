@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function HomeScreen({ userName, splits, activeSplitId, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit }) {
+export default function HomeScreen({ userName, splits, activeSplitId, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit, onRefresh }) {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -16,6 +16,7 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
   return (
     <div style={{ minHeight:"100dvh", background:"#f5f5f5", fontFamily:"Barlow,sans-serif", padding:"52px 20px 40px" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800;900&display=swap" />
+      <style>{`@keyframes stackSpin { to { transform: rotate(360deg); } }`}</style>
       <div style={{ maxWidth:340, margin:"0 auto" }}>
 
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:40 }}>
@@ -23,7 +24,13 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
             <div style={{ fontSize:44, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em", lineHeight:1, marginBottom:8 }}>STACK</div>
             <div style={{ fontSize:15, fontWeight:700, color:"#888" }}>Hey, {userName}</div>
           </div>
-          <button onClick={onSettings} style={{ background:"none", border:"none", color:"#bbb", fontSize:22, cursor:"pointer", padding:"6px 0 0 0" }}>⚙️</button>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <button onClick={onRefresh} disabled={loadingSplits}
+              style={{ background:"none", border:"none", color:"#bbb", fontSize:19, cursor:loadingSplits?"wait":"pointer", padding:"6px 0 0 0", display:"inline-block", animation: loadingSplits ? "stackSpin 0.7s linear infinite" : "none" }}>
+              ↻
+            </button>
+            <button onClick={onSettings} style={{ background:"none", border:"none", color:"#bbb", fontSize:22, cursor:"pointer", padding:"6px 0 0 0" }}>⚙️</button>
+          </div>
         </div>
 
         <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:12 }}>Your splits</div>

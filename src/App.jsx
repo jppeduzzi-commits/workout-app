@@ -32,17 +32,23 @@ export default function App() {
   const activeProgram = activeSplit?.program || {};
   const activeDays    = activeSplit?.days || [];
 
-  // Load splits + settings whenever we know the user's name
-  useEffect(() => {
-    if (!userName) return;
+  const loadSplits = (name) => {
     setLoadingSplits(true);
-    fbLoadSplitsForUser(userName).then(({ splits: s, activeSplitId: id, settings: st }) => {
+    return fbLoadSplitsForUser(name).then(({ splits: s, activeSplitId: id, settings: st }) => {
       setSplits(s);
       setActiveSplitId(id);
       if (st) setSettings(st);
       setLoadingSplits(false);
     });
+  };
+
+  // Load splits + settings whenever we know the user's name
+  useEffect(() => {
+    if (!userName) return;
+    loadSplits(userName);
   }, [userName]);
+
+  const handleRefresh = () => { if (userName) loadSplits(userName); };
 
   // Auth: anonymous Firebase auth just for Firestore security rules.
   // User identity comes from localStorage name, NOT from the Firebase UID.
@@ -155,6 +161,7 @@ export default function App() {
         onSettings={() => setScreen("settings")}
         onPerformance={() => setScreen("performance")}
         onDeleteSplit={handleDeleteSplit}
+        onRefresh={handleRefresh}
       />
     </div>
   );
