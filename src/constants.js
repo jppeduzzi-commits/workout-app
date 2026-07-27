@@ -11,13 +11,6 @@ export const EX_TYPES = [
   { key: "plyometric",  label: "Plyometric / Power" },
   { key: "conditioning",label: "Cardio / Conditioning" },
 ];
-export const DAY_META = {
-  "Upper A":   { day: "Mon",     sub: "Chest Priority" },
-  "Lower A":   { day: "Tue",     sub: "Athletic" },
-  "Upper B":   { day: "Wed",     sub: "Shoulder Priority" },
-  "Lower B":   { day: "Thu",     sub: "Athletic · Power" },
-  "Accessory": { day: "Fri/Sat", sub: "Solo · Accessory" },
-};
 export const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 export const TODAY = () => { const d = new Date(); return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };
 export const TODAYFMT = () => { const d = new Date(); return `${DAYS[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };

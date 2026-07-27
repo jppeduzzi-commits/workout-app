@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { DAY_META } from "../constants";
 import ShareSplitModal from "./ShareSplitModal";
 
 export default function DaySelectScreen({ activeSplit, activeDays, activeProgram, userName, onSelectDay, onEditor, onReorderDays, onBack, onShareSplit }) {
@@ -69,9 +68,9 @@ export default function DaySelectScreen({ activeSplit, activeDays, activeProgram
               <button onClick={() => onSelectDay(dk)}
                 style={{ flex:1, padding:"14px 16px", background:"#fff", border:`1.5px solid ${overIdx === origIdx && dragIdx !== origIdx ? "#888" : "#e8e8e8"}`, borderRadius:14, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
                 <div style={{ fontSize:14, fontWeight:800, color:"#0a0a0a" }}>{dk}</div>
-                <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>
-                  {DAY_META[dk] ? `${DAY_META[dk].day} · ${DAY_META[dk].sub}` : (activeProgram[dk]?.subtitle || "")}
-                </div>
+                {activeProgram[dk]?.subtitle && (
+                  <div style={{ fontSize:12, color:"#bbb", marginTop:2 }}>{activeProgram[dk].subtitle}</div>
+                )}
               </button>
             </div>
           );
