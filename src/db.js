@@ -242,10 +242,14 @@ export async function fbPushSplitToUser(ownerName, targetName, split) {
     const existingSnap = await getDocs(collection(db, "programs", c, "splits"));
     const existing = existingSnap.docs.map(d => d.data());
     const match = existing.find(s => s.name.toLowerCase() === split.name.toLowerCase());
-    // Only relink an existing same-named split if it's still linked to THIS
-    // owner+split — otherwise the recipient offloaded (or it's an unrelated
-    // split of theirs), so don't clobber their now-independent copy.
-    const canRelink = match && match.sharedFrom?.owner === owner && match.sharedFrom?.splitId === split.id;
+    // Relink an existing same-named split if it's still linked to THIS owner+split,
+    // or if it's never been linked/offloaded at all (a copy from before live-sharing
+    // existed, or a same-named split they made themselves — safe to upgrade in place).
+    // Only refuse to relink when they've explicitly offloaded — that's the one case
+    // where clobbering their now-independent copy would actually lose their edits.
+    const isLinkedToMe = match?.sharedFrom?.owner === owner && match?.sharedFrom?.splitId === split.id;
+    const neverTouched  = match && !match.sharedFrom && !match.offloadedFrom;
+    const canRelink = isLinkedToMe || neverTouched;
     const targetId = canRelink ? match.id : newSplitId();
     const target = { ...copy(split), id: targetId, sharedFrom: { owner, splitId: split.id } };
     await setDoc(doc(db, "programs", c, "splits", targetId), target);
@@ -262,8 +266,15 @@ export async function fbLoadSplitFresh(ownerName, splitId) {
 }
 
 // Detaches a shared split into a fully independent copy — no more overlay-on-load.
+// Leaves a permanent offloadedFrom marker so a future re-share from the same name
+// knows this was a deliberate detach, not just a split that predates live-sharing,
+// and won't silently relink over the recipient's independent edits.
 export async function fbOffloadSplit(name, splitId) {
-  try { await setDoc(doc(db, "programs", can(name), "splits", splitId), { sharedFrom: null }, { merge: true }); } catch(e) { console.error(e); }
+  try {
+    const snap = await getDoc(doc(db, "programs", can(name), "splits", splitId));
+    const prevSharedFrom = snap.exists() ? snap.data().sharedFrom : null;
+    await setDoc(doc(db, "programs", can(name), "splits", splitId), { sharedFrom: null, offloadedFrom: prevSharedFrom || true }, { merge: true });
+  } catch(e) { console.error(e); }
 }
 
 // ── Username registry (optional, for future features) ─────────────────────────
