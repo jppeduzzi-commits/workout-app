@@ -37,18 +37,15 @@ export default function SettingsScreen({ userName, settings, onUpdate, onBack, o
         </div>
 
         <div style={{ background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:12, padding:16, marginBottom:12 }}>
-          <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a", marginBottom:2 }}>Effort tracking</div>
-          <div style={{ fontSize:11, color:"#bbb", marginBottom:12 }}>RIR (reps in reserve) and RPE (rate of perceived exertion) are different scales — pick one at a time</div>
-          <div style={{ display:"flex", gap:8 }}>
-            {[{k:"rir",l:"RIR"},{k:"rpe",l:"RPE"},{k:"none",l:"None"}].map(o => {
-              const active = (settings.effortScale || "rir") === o.k;
-              return (
-                <button key={o.k} onClick={() => onUpdate("effortScale", o.k)}
-                  style={{ flex:1, padding:"9px 0", background:active?"#0a0a0a":"#f5f5f5", color:active?"#fff":"#888", border:`1.5px solid ${active?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, fontSize:13, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>
-                  {o.l}
-                </button>
-              );
-            })}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>Effort tracking</div>
+              <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>Choose RIR or RPE per exercise when building a split</div>
+            </div>
+            <div onClick={() => onUpdate("effortScale", (settings.effortScale || "rir") === "none" ? "rir" : "none")}
+              style={{ width:44, height:24, borderRadius:12, background:(settings.effortScale || "rir") !== "none" ? "#16a34a" : "#e8e8e8", position:"relative", cursor:"pointer", transition:"background .2s" }}>
+              <div style={{ position:"absolute", top:3, left:(settings.effortScale || "rir") !== "none" ? 22 : 3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
+            </div>
           </div>
         </div>
 
