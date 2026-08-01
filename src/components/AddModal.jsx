@@ -73,35 +73,14 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
     <div>
       <div style={{ fontSize:15, fontWeight:800, marginBottom:4, color:"#0a0a0a" }}>How is it tracked?</div>
       <div style={{ fontSize:12, color:"#bbb", marginBottom:12 }}>What do you count per set?</div>
-      <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom: ex.isSuperset ? 0 : 16 }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {TRACK.map(t => (
           <button key={t.key} onClick={() => setEx(x=>({...x, trackingType:t.key}))} style={{ padding:"11px 14px", textAlign:"left", background:ex.trackingType===t.key?"#0a0a0a":"#fff", color:ex.trackingType===t.key?"#fff":"#0a0a0a", border:`1.5px solid ${ex.trackingType===t.key?"#0a0a0a":"#e8e8e8"}`, borderRadius:10, fontFamily:"inherit", cursor:"pointer", fontSize:13, fontWeight:700 }}>
             {t.label}<span style={{ fontSize:11, fontWeight:400, marginLeft:8, opacity:0.6 }}>{t.ph}</span>
+            {t.pairWithReps && <span style={{ fontSize:11, fontWeight:400, marginLeft:8, opacity:0.6 }}>+ Reps</span>}
           </button>
         ))}
       </div>
-      {!ex.isSuperset && (
-        <>
-          <label onClick={() => setEx(x => ({...x, customMetric: x.customMetric ? null : { label:"", ph:"" }}))} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginBottom: ex.customMetric ? 12 : 0 }}>
-            <div style={{ width:36, height:20, borderRadius:10, background:ex.customMetric?"#0a0a0a":"#d1d5db", position:"relative", transition:"background .2s", flexShrink:0 }}>
-              <div style={{ position:"absolute", top:2, left:ex.customMetric?18:2, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left .2s" }} />
-            </div>
-            <span style={{ fontSize:13, color:"#555", fontWeight:600 }}>Track an extra setting (e.g. Height)</span>
-          </label>
-          {ex.customMetric && (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              <div>
-                <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>SETTING NAME</label>
-                <input value={ex.customMetric.label} onChange={e=>setEx(x=>({...x, customMetric:{...x.customMetric, label:e.target.value}}))} placeholder="e.g. Height" style={inp} />
-              </div>
-              <div>
-                <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>PLACEHOLDER</label>
-                <input value={ex.customMetric.ph} onChange={e=>setEx(x=>({...x, customMetric:{...x.customMetric, ph:e.target.value}}))} placeholder="e.g. 24 in" style={inp} />
-              </div>
-            </div>
-          )}
-        </>
-      )}
     </div>,
     <div>
       <div style={{ fontSize:15, fontWeight:800, marginBottom:4, color:"#0a0a0a" }}>Set the target</div>
@@ -120,7 +99,7 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
     if (!findExerciseCandidates) { setStep(s => s + 1); return; }
     const { exact, candidates } = findExerciseCandidates(ex.name);
     if (exact) {
-      applyResolved({ exerciseId: exact.id, name: exact.name, trackingType: exact.trackingType, exType: exact.exType, customMetric: exact.customMetric || null });
+      applyResolved({ exerciseId: exact.id, name: exact.name, trackingType: exact.trackingType, exType: exact.exType });
     } else if (candidates.length > 0) {
       setDupCheck({ rawName: ex.name, candidates });
     } else {
@@ -130,7 +109,7 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
 
   const finalizeAndAdd = () => {
     if (onSaveExercise && ex.exerciseId) {
-      onSaveExercise({ id: ex.exerciseId, name: ex.name, trackingType: ex.trackingType, exType: ex.exType, customMetric: ex.customMetric || null, createdAt: Date.now() });
+      onSaveExercise({ id: ex.exerciseId, name: ex.name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
     }
     onAdd(ex);
   };
@@ -157,7 +136,7 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
         <DuplicateExerciseModal
           rawName={dupCheck.rawName}
           candidates={dupCheck.candidates}
-          onMerge={candidate => { applyResolved({ exerciseId: candidate.id, name: candidate.name, trackingType: candidate.trackingType, exType: candidate.exType, customMetric: candidate.customMetric || null }); setDupCheck(null); }}
+          onMerge={candidate => { applyResolved({ exerciseId: candidate.id, name: candidate.name, trackingType: candidate.trackingType, exType: candidate.exType }); setDupCheck(null); }}
           onKeepSeparate={() => { applyResolved({ exerciseId: slugify(dupCheck.rawName), name: titleCaseExercise(dupCheck.rawName) }); setDupCheck(null); }}
           onClose={() => setDupCheck(null)}
         />

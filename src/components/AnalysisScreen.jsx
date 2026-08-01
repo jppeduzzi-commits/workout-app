@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { calc1RM, calcNextSession } from "../utils";
-import { PCTS, fmtDate, parseDateStr, inp } from "../constants";
+import { PCTS, TRACK, fmtDate, parseDateStr, inp } from "../constants";
 
 export default function AnalysisScreen({ ex, log, onBack }) {
   const [tab, setTab] = useState("prs");
@@ -8,13 +8,14 @@ export default function AnalysisScreen({ ex, log, onBack }) {
   const [calcReps, setCalcReps] = useState("");
   const calcResult = calc1RM(calcWeight, calcReps, 1);
 
+  const track = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
   const isCompound   = ex.exType === "compound";
   const isIsolation  = ex.exType === "isolation";
   const isCarries    = ex.exType === "carries";
   const isPlyometric = ex.exType === "plyometric";
   const isReps       = ex.trackingType === "reps";
-  const hasCustom    = !!ex.customMetric;
-  const showPercentages = isReps && !hasCustom && (!ex.exType || isCompound || isIsolation);
+  const pairWithReps = !!track.pairWithReps;
+  const showPercentages = isReps && (!ex.exType || isCompound || isIsolation);
 
   const sortedLog = [...(log || [])].sort((a, b) => (parseDateStr(a.date)?.getTime() || 0) - (parseDateStr(b.date)?.getTime() || 0));
 
@@ -22,9 +23,9 @@ export default function AnalysisScreen({ ex, log, onBack }) {
   sortedLog.forEach(entry => {
     if (!entry?.sets) return;
     entry.sets.forEach(set => {
-      if (hasCustom) {
-        if (set.custom && set.perf) {
-          numericSets.push({ date:entry.date, weight: set.bw ? null : (parseFloat(set.weight) || null), bw: !!set.bw, custom: set.custom, reps: parseFloat(set.perf), rir: set.rir != null ? parseFloat(set.rir) : 1 });
+      if (pairWithReps) {
+        if (set.perf && set.reps) {
+          numericSets.push({ date:entry.date, weight: set.bw ? null : (parseFloat(set.weight) || null), bw: !!set.bw, value: set.perf, reps: parseFloat(set.reps), rir: set.rir != null ? parseFloat(set.rir) : 1 });
         }
       } else if (!set.bw && set.weight && set.perf) {
         numericSets.push({ date:entry.date, weight:parseFloat(set.weight), reps:parseFloat(set.perf), rir:set.rir != null ? parseFloat(set.rir) : 1 });
@@ -33,12 +34,12 @@ export default function AnalysisScreen({ ex, log, onBack }) {
   });
 
   let bestSet = null, best1RM = 0;
-  if (hasCustom) {
-    // Rank by the custom metric itself (e.g. box jump height), not weight — most
-    // custom-tracked exercises are bodyweight, so weight isn't a useful ranking signal.
+  if (pairWithReps) {
+    // Rank by the paired metric itself (e.g. broad jump distance), not weight —
+    // most exercises tracked this way are bodyweight, so weight isn't a useful signal.
     numericSets.forEach(s => {
-      const val = parseFloat(s.custom) || 0;
-      const bestVal = bestSet ? (parseFloat(bestSet.custom) || 0) : -Infinity;
+      const val = parseFloat(s.value) || 0;
+      const bestVal = bestSet ? (parseFloat(bestSet.value) || 0) : -Infinity;
       if (val > bestVal || (val === bestVal && s.reps > (bestSet?.reps || 0))) bestSet = s;
     });
   } else if (isReps) {
@@ -53,7 +54,7 @@ export default function AnalysisScreen({ ex, log, onBack }) {
     });
   }
 
-  const nextSession = (bestSet && !hasCustom) ? calcNextSession(bestSet.weight, bestSet.reps, ex.target, ex.exType) : null;
+  const nextSession = (bestSet && !pairWithReps) ? calcNextSession(bestSet.weight, bestSet.reps, ex.target, ex.exType) : null;
   const recent = sortedLog.slice(-5).reverse();
 
   return (
@@ -128,14 +129,14 @@ export default function AnalysisScreen({ ex, log, onBack }) {
           <>
             <div style={{ background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:14, padding:16, marginBottom:14 }}>
               <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:8 }}>All-time best set</div>
-              {hasCustom ? (
+              {pairWithReps ? (
                 <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", marginBottom:4 }}>
-                  {bestSet.bw ? "BW" : bestSet.weight ? `${bestSet.weight}lbs · ` : ""}{ex.customMetric.label}: {bestSet.custom} × {bestSet.reps} {isReps ? "reps" : ex.trackingType}
+                  {bestSet.bw ? "BW" : bestSet.weight ? `${bestSet.weight}lbs · ` : ""}{track.label}: {bestSet.value} × {bestSet.reps} reps
                 </div>
               ) : (
                 <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", marginBottom:4 }}>{bestSet.weight}lbs × {bestSet.reps} reps</div>
               )}
-              <div style={{ fontSize:11, color:"#bbb" }}>{!hasCustom && `RIR ${bestSet.rir} · `}{fmtDate(bestSet.date) || bestSet.date}</div>
+              <div style={{ fontSize:11, color:"#bbb" }}>{!pairWithReps && `RIR ${bestSet.rir} · `}{fmtDate(bestSet.date) || bestSet.date}</div>
             </div>
 
             {showPercentages && best1RM && (
@@ -184,20 +185,20 @@ export default function AnalysisScreen({ ex, log, onBack }) {
               <div style={{ fontSize:10, color:"#bbb", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:12 }}>Recent sessions</div>
               {recent.map((s, i) => {
                 if (!s?.sets) return null;
-                const top = hasCustom
-                  ? s.sets.filter(st => st.custom && st.perf).sort((a,b) => (parseFloat(b.custom)||0) - (parseFloat(a.custom)||0))[0]
+                const top = pairWithReps
+                  ? s.sets.filter(st => st.perf && st.reps).sort((a,b) => (parseFloat(b.perf)||0) - (parseFloat(a.perf)||0))[0]
                   : s.sets.filter(st => st.weight && st.perf && !st.bw).sort((a,b) => parseFloat(b.weight)*parseFloat(b.perf) - parseFloat(a.weight)*parseFloat(a.perf))[0];
                 if (!top) return null;
-                const orm = isReps && !hasCustom && isCompound ? calc1RM(top.weight, top.perf, top.rir != null ? top.rir : 1) : null;
+                const orm = isReps && isCompound ? calc1RM(top.weight, top.perf, top.rir != null ? top.rir : 1) : null;
                 return (
                   <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:i < recent.length-1 ? "1px solid #f0f0f0" : "none" }}>
                     <div>
-                      {hasCustom ? (
-                        <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>{top.bw ? "BW" : top.weight ? `${top.weight}lbs · ` : ""}{ex.customMetric.label}: {top.custom} × {top.perf}</div>
+                      {pairWithReps ? (
+                        <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>{top.bw ? "BW" : top.weight ? `${top.weight}lbs · ` : ""}{track.label}: {top.perf} × {top.reps} reps</div>
                       ) : (
                         <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>{top.weight}lbs × {top.perf}</div>
                       )}
-                      <div style={{ fontSize:11, color:"#bbb" }}>{!hasCustom && top.rir != null ? `RIR ${top.rir} · ` : ""}{fmtDate(s.date) || s.date}</div>
+                      <div style={{ fontSize:11, color:"#bbb" }}>{!pairWithReps && top.rir != null ? `RIR ${top.rir} · ` : ""}{fmtDate(s.date) || s.date}</div>
                     </div>
                     {orm && <span style={{ fontSize:12, color:"#888", fontWeight:700 }}>~{orm} 1RM</span>}
                   </div>

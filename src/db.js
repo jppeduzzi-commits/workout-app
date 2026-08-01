@@ -10,7 +10,7 @@ import { copy, slugify, titleCaseExercise, newSplitId } from "./constants";
 //   programs/{name}/splits/{splitId}             → { id, name, days, program, createdAt, sharedFrom?: {owner, splitId} }
 //   programs/{name}/splits/{splitId}/sessions/{dayKey} → { sessions: [] }
 //   programs/{name}/splits/{splitId}/drafts/{dayKey}   → { draft: {}, savedAt }
-//   programs/{name}/exercises/{exerciseId}       → { id, name, trackingType, customMetric, exType, createdAt, log: [] }
+//   programs/{name}/exercises/{exerciseId}       → { id, name, trackingType, exType, createdAt, log: [] }
 //     exerciseId is a deterministic slug of the name (see slugify) — same exercise
 //     resolves to the same doc no matter which split/day it's logged under.
 //   usernames/{name_lower}                       → { name } — for push-to-friend
@@ -154,7 +154,7 @@ export async function fbMigrateExerciseCatalog(name, splits) {
           if (slot.exerciseId) return;
           const id = slugify(slot.name);
           if (!catalogMap[id]) {
-            const entry = { id, name: titleCaseExercise(slot.name) || slot.name, trackingType: slot.trackingType || "reps", customMetric: slot.customMetric || null, exType: slot.exType || "compound", createdAt: Date.now(), log: [] };
+            const entry = { id, name: titleCaseExercise(slot.name) || slot.name, trackingType: slot.trackingType || "reps", exType: slot.exType || "compound", createdAt: Date.now(), log: [] };
             catalogMap[id] = entry;
             newEntries[id] = entry;
           }

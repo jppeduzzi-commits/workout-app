@@ -11,14 +11,14 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
     if (!rawName?.trim() || !findExerciseCandidates) return;
     const { exact, candidates } = findExerciseCandidates(rawName);
     if (exact) {
-      if (exact.id !== ex.exerciseId) onUpdate({ ...ex, name: exact.name, exerciseId: exact.id, trackingType: exact.trackingType, exType: exact.exType, customMetric: exact.customMetric || null });
+      if (exact.id !== ex.exerciseId) onUpdate({ ...ex, name: exact.name, exerciseId: exact.id, trackingType: exact.trackingType, exType: exact.exType });
     } else if (candidates.length > 0) {
       setDupCheck({ rawName, candidates });
     } else {
       const id = slugify(rawName);
       const name = titleCaseExercise(rawName);
       onUpdate({ ...ex, name, exerciseId: id });
-      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, customMetric: ex.customMetric || null, createdAt: Date.now() });
+      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
     }
   };
   return (
@@ -61,26 +61,6 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
               <input type="checkbox" checked={ex.hasDrop} onChange={e=>onUpdate({...ex, hasDrop:e.target.checked})} style={{ width:15, height:15 }} />
               <span style={{ fontSize:12, color:"#888", fontWeight:600 }}>Include drop set</span>
             </label>
-            {!ex.isSuperset && (
-              <>
-                <label style={{ display:"flex", alignItems:"center", gap:8, gridColumn:"1/-1", cursor:"pointer" }}>
-                  <input type="checkbox" checked={!!ex.customMetric} onChange={e=>onUpdate({...ex, customMetric: e.target.checked ? { label:"", ph:"" } : null})} style={{ width:15, height:15 }} />
-                  <span style={{ fontSize:12, color:"#888", fontWeight:600 }}>Track an extra setting (e.g. Height)</span>
-                </label>
-                {ex.customMetric && (
-                  <>
-                    <div>
-                      <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>SETTING NAME</label>
-                      <input value={ex.customMetric.label} onChange={e=>onUpdate({...ex, customMetric:{...ex.customMetric, label:e.target.value}})} style={inp} placeholder="e.g. Height" />
-                    </div>
-                    <div>
-                      <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>PLACEHOLDER</label>
-                      <input value={ex.customMetric.ph} onChange={e=>onUpdate({...ex, customMetric:{...ex.customMetric, ph:e.target.value}})} style={inp} placeholder="e.g. 24 in" />
-                    </div>
-                  </>
-                )}
-              </>
-            )}
             <div style={{ gridColumn:"1/-1" }}>
               <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>NOTES</label>
               <textarea value={ex.notes} onChange={e=>onUpdate({...ex, notes:e.target.value})} rows={2} style={{ ...inp, resize:"none", fontFamily:"inherit", fontSize:12 }} placeholder="Cues or instructions..." />
@@ -93,11 +73,11 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
         <DuplicateExerciseModal
           rawName={dupCheck.rawName}
           candidates={dupCheck.candidates}
-          onMerge={candidate => { onUpdate({ ...ex, name: candidate.name, exerciseId: candidate.id, trackingType: candidate.trackingType, exType: candidate.exType, customMetric: candidate.customMetric || null }); setDupCheck(null); }}
+          onMerge={candidate => { onUpdate({ ...ex, name: candidate.name, exerciseId: candidate.id, trackingType: candidate.trackingType, exType: candidate.exType }); setDupCheck(null); }}
           onKeepSeparate={() => {
             const id = slugify(dupCheck.rawName), name = titleCaseExercise(dupCheck.rawName);
             onUpdate({ ...ex, name, exerciseId: id });
-            if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, customMetric: ex.customMetric || null, createdAt: Date.now() });
+            if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
             setDupCheck(null);
           }}
           onClose={() => setDupCheck(null)}

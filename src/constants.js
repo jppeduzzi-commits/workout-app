@@ -1,14 +1,18 @@
+// Distance and Height are measurements taken *during* a rep, not a rep count
+// themselves (e.g. a broad jump: how far, and how many jumps) — pairWithReps
+// adds a fixed companion Reps column automatically, no extra setup needed.
 export const TRACK = [
   { key: "reps",     label: "Reps",     ph: "e.g. 10" },
   { key: "laps",     label: "Laps",     ph: "e.g. 3" },
   { key: "time",     label: "Time",     ph: "e.g. 45 sec" },
-  { key: "distance", label: "Distance", ph: "e.g. turf length" },
+  { key: "distance", label: "Distance", ph: "e.g. 8 ft", pairWithReps: true },
+  { key: "height",   label: "Height",   ph: "e.g. 24 in", pairWithReps: true },
 ];
 export const EX_TYPES = [
   { key: "compound",     label: "Compound" },
   { key: "isolation",   label: "Isolation" },
-  { key: "carries",     label: "Carries / Distance" },
-  { key: "plyometric",  label: "Plyometric / Power" },
+  { key: "carries",     label: "Carries" },
+  { key: "plyometric",  label: "Plyometric" },
   { key: "conditioning",label: "Cardio / Conditioning" },
 ];
 export const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];

@@ -9,7 +9,7 @@ import DuplicateExerciseModal from "./DuplicateExerciseModal";
 function makeRows(ex) {
   const base = ex.isSuperset
     ? { bw:false, weight:"", perf:"", rir:null, bw2:false, weight2:"", perf2:"" }
-    : { bw:false, weight:"", perf:"", rir:null, custom:"" };
+    : { bw:false, weight:"", perf:"", rir:null, reps:"" };
   return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
@@ -43,9 +43,11 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
     } else {
       const id = slugify(rawName), name = titleCaseExercise(rawName);
       onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
-      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, customMetric: ex.customMetric || null, createdAt: Date.now() });
+      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
     }
   };
+
+  const pairWithReps = !ex.isSuperset && !!track.pairWithReps;
 
   const hasPR = !ex.isSuperset && !isSub && !prevIsSub && track.key === "reps" && prevEntry && sets.some(s => s.weight && s.perf && !s.bw) && (() => {
     const cur  = Math.max(...sets.map(s => (parseFloat(s.weight)||0) * (parseFloat(s.perf)||0)));
@@ -70,8 +72,9 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
       return { ...s, _prev:pA, _prevA:pA, _prevB:pB, _prevIsSub:false, _prevRir:null };
     }
     const weightPart = prevSets[i].bw ? "BW" : (prevSets[i].weight || "—");
-    const customPart = ex.customMetric ? ` · ${prevSets[i].custom || "—"}` : "";
-    const raw = `${weightPart}${customPart}×${prevSets[i].perf||"—"}`;
+    const raw = pairWithReps
+      ? `${weightPart}·${prevSets[i].perf||"—"}×${prevSets[i].reps||"—"}`
+      : `${weightPart}×${prevSets[i].perf||"—"}`;
     const prevRir = prevSets[i].rir != null && prevSets[i].rir !== "" ? prevSets[i].rir : null;
     return { ...s, _prev:raw, _prevIsSub:prevIsSub, _prevRir:prevRir };
   });
@@ -85,7 +88,7 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
   const addSet = () => {
     const newRow = ex.isSuperset
       ? {bw:false, weight:"", perf:"", rir:null, bw2:false, weight2:"", perf2:""}
-      : {bw:false, weight:"", perf:"", rir:null, custom:""};
+      : {bw:false, weight:"", perf:"", rir:null, reps:""};
     onChange({...entry, sets:[...sets, newRow]});
   };
   const delSet = i => onChange({...entry, sets:sets.filter((_,idx) => idx!==i)});
@@ -100,11 +103,10 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
   };
 
   const isReps = track.key === "reps";
-  const hasCustom = !ex.isSuperset && !!ex.customMetric;
-  const gridCols = hasCustom
-    ? (isReps && showRIR ? "20px 1fr 1fr 1fr 52px 56px" : "20px 1fr 1fr 1fr 56px")
+  const gridCols = pairWithReps
+    ? "20px 1fr 1fr 1fr 56px"
     : (isReps && showRIR ? "20px 1fr 1fr 52px 56px" : "20px 1fr 1fr 56px");
-  const headers  = ["#", "WEIGHT", hasCustom && ex.customMetric.label.toUpperCase(), track.label.toUpperCase(), isReps && showRIR && "RIR", "LAST"].filter(Boolean);
+  const headers  = ["#", "WEIGHT", track.label.toUpperCase(), pairWithReps && "REPS", isReps && showRIR && "RIR", "LAST"].filter(Boolean);
 
   return (
     <div style={{ background:"#fff", border:`1.5px solid ${open?"#33333333":"#e8e8e8"}`, borderRadius:12, marginBottom:8, overflow:"hidden" }}>
@@ -222,7 +224,6 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
                   <SetRow key={i} s={s} i={i} isDrop={isDrop} track={track} readOnly={readOnly}
                     showRIR={showRIR}
                     suggestion={suggestion}
-                    customMetric={hasCustom ? ex.customMetric : null}
                     onUpdate={(f,v) => updSet(i,f,v)}
                     onDelete={() => delSet(i)}
                   />
@@ -269,7 +270,7 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
           onKeepSeparate={() => {
             const id = slugify(dupCheck.rawName), name = titleCaseExercise(dupCheck.rawName);
             onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
-            if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, customMetric: ex.customMetric || null, createdAt: Date.now() });
+            if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
             setDupCheck(null);
           }}
           onClose={() => setDupCheck(null)}

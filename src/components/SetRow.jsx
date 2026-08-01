@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { inp } from "../constants";
 
-export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDelete, showRIR, suggestion, customMetric }) {
+export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDelete, showRIR, suggestion }) {
   const rowBg     = isDrop ? "#fffbeb" : "#f8f8f8";
   const rowBorder = isDrop ? "1px solid #fde68a" : "1px solid #e8e8e8";
   const [offset, setOffset] = useState(0);
@@ -9,6 +9,7 @@ export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDele
   const startX = useRef(null);
   const DELETE_W = 72;
   const isReps = track.key === "reps";
+  const pairWithReps = !!track.pairWithReps;
 
   const onTouchStart = e => {
     if (readOnly) return;
@@ -26,8 +27,8 @@ export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDele
     startX.current = null;
   };
 
-  const gridCols = customMetric
-    ? (isReps && showRIR ? "20px 1fr 1fr 1fr 52px 56px" : "20px 1fr 1fr 1fr 56px")
+  const gridCols = pairWithReps
+    ? "20px 1fr 1fr 1fr 56px"
     : (isReps && showRIR ? "20px 1fr 1fr 52px 56px" : "20px 1fr 1fr 56px");
 
   return (
@@ -53,11 +54,11 @@ export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDele
               {!s.bw && <input disabled={readOnly} value={s.weight} onChange={e=>onUpdate("weight",e.target.value)} placeholder="lbs" style={{ ...inp, padding:"5px 7px", fontSize:12, background:rowBg, border:rowBorder }} />}
             </div>
 
-            {customMetric && (
-              <input disabled={readOnly} value={s.custom||""} onChange={e=>onUpdate("custom",e.target.value)} placeholder={customMetric.ph || customMetric.label} style={{ ...inp, padding:"5px 7px", fontSize:12, background:rowBg, border:rowBorder }} />
-            )}
-
             <input disabled={readOnly} value={s.perf} onChange={e=>onUpdate("perf",e.target.value)} placeholder={track.ph} style={{ ...inp, padding:"5px 7px", fontSize:12, background:rowBg, border:rowBorder }} />
+
+            {pairWithReps && (
+              <input disabled={readOnly} value={s.reps||""} onChange={e=>onUpdate("reps",e.target.value)} placeholder="reps" style={{ ...inp, padding:"5px 7px", fontSize:12, background:rowBg, border:rowBorder }} />
+            )}
 
             {isReps && showRIR && (
               <select
