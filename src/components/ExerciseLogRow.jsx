@@ -1,19 +1,21 @@
 import { useState } from "react";
-import { TRACK, inp, roundTo } from "../constants";
+import { TRACK, inp, roundTo, titleCaseExercise, slugify } from "../constants";
 import { parseRepRange, calcSet2Suggestion } from "../utils";
 import SetRow from "./SetRow";
 import Tag from "./Tag";
 import Toggle from "./Toggle";
+import DuplicateExerciseModal from "./DuplicateExerciseModal";
 
 function makeRows(ex) {
   const base = ex.isSuperset
     ? { bw:false, weight:"", perf:"", rir:null, bw2:false, weight2:"", perf2:"" }
-    : { bw:false, weight:"", perf:"", rir:null };
+    : { bw:false, weight:"", perf:"", rir:null, custom:"" };
   return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
-export default function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnly, sessions, onViewAnalysis, showRIR }) {
+export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, showRIR, findExerciseCandidates, onSaveExercise }) {
   const [open, setOpen] = useState(false);
+  const [dupCheck, setDupCheck] = useState(null);
   const track    = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
   const sets     = entry?.sets || makeRows(ex);
   const isSub    = entry?.isSub || false;
@@ -21,11 +23,31 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnl
   const logged   = ex.isSuperset
     ? sets.some(s => s.weight || s.perf || s.weight2 || s.perf2)
     : sets.some(s => s.bw || s.weight || s.perf);
-  const prevSets = prevEntry?.sets || [];
-  const prevIsSub   = prevEntry?.isSub || false;
-  const prevSubName = prevEntry?.subName || "";
 
-  const hasPR = !ex.isSuperset && !isSub && !prevIsSub && prevEntry && sets.some(s => s.weight && s.perf && !s.bw) && (() => {
+  // While substituting, "last time" comes from the substitute's own global
+  // history, not the original exercise's — never mixed together.
+  const effectivePrev = isSub ? subPrevEntry : prevEntry;
+  const prevSets = effectivePrev?.sets || [];
+  const prevIsSub   = effectivePrev?.isSub || false;
+  const prevSubName = effectivePrev?.subName || "";
+
+  const viaSplit = effectivePrev?._viaSplit || null;
+
+  const resolveSubName = (rawName) => {
+    if (!rawName?.trim() || !findExerciseCandidates) { onChange({ ...entry, sets, isSub:true, subName:rawName, subExerciseId:null }); return; }
+    const { exact, candidates } = findExerciseCandidates(rawName);
+    if (exact) {
+      onChange({ ...entry, sets, isSub:true, subName:exact.name, subExerciseId:exact.id });
+    } else if (candidates.length > 0) {
+      setDupCheck({ rawName, candidates });
+    } else {
+      const id = slugify(rawName), name = titleCaseExercise(rawName);
+      onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
+      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, customMetric: ex.customMetric || null, createdAt: Date.now() });
+    }
+  };
+
+  const hasPR = !ex.isSuperset && !isSub && !prevIsSub && track.key === "reps" && prevEntry && sets.some(s => s.weight && s.perf && !s.bw) && (() => {
     const cur  = Math.max(...sets.map(s => (parseFloat(s.weight)||0) * (parseFloat(s.perf)||0)));
     const prev = Math.max(...(prevEntry.sets||[]).map(s => (parseFloat(s.weight)||0) * (parseFloat(s.perf)||0)));
     return cur > prev && prev > 0;
@@ -47,7 +69,9 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnl
       const pB = prevSets[i].bw2 ? `BW×${prevSets[i].perf2||"—"}` : `${prevSets[i].weight2||"—"}×${prevSets[i].perf2||"—"}`;
       return { ...s, _prev:pA, _prevA:pA, _prevB:pB, _prevIsSub:false, _prevRir:null };
     }
-    const raw = prevSets[i].bw ? `BW×${prevSets[i].perf||"—"}` : `${prevSets[i].weight||"—"}×${prevSets[i].perf||"—"}`;
+    const weightPart = prevSets[i].bw ? "BW" : (prevSets[i].weight || "—");
+    const customPart = ex.customMetric ? ` · ${prevSets[i].custom || "—"}` : "";
+    const raw = `${weightPart}${customPart}×${prevSets[i].perf||"—"}`;
     const prevRir = prevSets[i].rir != null && prevSets[i].rir !== "" ? prevSets[i].rir : null;
     return { ...s, _prev:raw, _prevIsSub:prevIsSub, _prevRir:prevRir };
   });
@@ -61,7 +85,7 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnl
   const addSet = () => {
     const newRow = ex.isSuperset
       ? {bw:false, weight:"", perf:"", rir:null, bw2:false, weight2:"", perf2:""}
-      : {bw:false, weight:"", perf:"", rir:null};
+      : {bw:false, weight:"", perf:"", rir:null, custom:""};
     onChange({...entry, sets:[...sets, newRow]});
   };
   const delSet = i => onChange({...entry, sets:sets.filter((_,idx) => idx!==i)});
@@ -76,8 +100,11 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnl
   };
 
   const isReps = track.key === "reps";
-  const gridCols = isReps && showRIR ? "20px 1fr 1fr 52px 56px" : "20px 1fr 1fr 56px";
-  const headers  = ["#", "WEIGHT", track.label.toUpperCase(), isReps && showRIR && "RIR", "LAST"].filter(Boolean);
+  const hasCustom = !ex.isSuperset && !!ex.customMetric;
+  const gridCols = hasCustom
+    ? (isReps && showRIR ? "20px 1fr 1fr 1fr 52px 56px" : "20px 1fr 1fr 1fr 56px")
+    : (isReps && showRIR ? "20px 1fr 1fr 52px 56px" : "20px 1fr 1fr 56px");
+  const headers  = ["#", "WEIGHT", hasCustom && ex.customMetric.label.toUpperCase(), track.label.toUpperCase(), isReps && showRIR && "RIR", "LAST"].filter(Boolean);
 
   return (
     <div style={{ background:"#fff", border:`1.5px solid ${open?"#33333333":"#e8e8e8"}`, borderRadius:12, marginBottom:8, overflow:"hidden" }}>
@@ -96,6 +123,9 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnl
           </div>
           {prevIsSub && prevSubName && !open && (
             <div style={{ fontSize:10, color:"#f59e0b", marginTop:3, fontWeight:600 }}>↻ Last session: {prevSubName}</div>
+          )}
+          {!prevIsSub && viaSplit && !open && (
+            <div style={{ fontSize:10, color:"#888", marginTop:3, fontWeight:600 }}>↻ Last logged via "{viaSplit}"</div>
           )}
           {toppedRange && !open && (
             <div style={{ fontSize:10, color:"#2563eb", marginTop:3, fontWeight:600 }}>
@@ -130,11 +160,17 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnl
             </div>
           )}
 
+          {!prevIsSub && viaSplit && (
+            <div style={{ background:"#f9fafb", border:"1px solid #eeeeee", borderRadius:8, padding:"8px 12px", marginBottom:10 }}>
+              <div style={{ fontSize:11, color:"#888" }}>↻ Last logged via <strong>"{viaSplit}"</strong> — numbers below are from that workout, not this one</div>
+            </div>
+          )}
+
           {!readOnly && (
             <div style={{ marginBottom:12 }}>
-              <Toggle on={isSub} onToggle={() => onChange({...entry, sets, isSub:!isSub, subName:""})} label="Mark as substitution" />
+              <Toggle on={isSub} onToggle={() => onChange({...entry, sets, isSub:!isSub, subName:"", subExerciseId:null})} label="Mark as substitution" />
               {isSub && (
-                <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} placeholder="What did you do instead? e.g. DB Shoulder Press" style={{ ...inp, marginTop:8, fontSize:12 }} />
+                <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} onBlur={e=>resolveSubName(e.target.value)} placeholder="What did you do instead? e.g. DB Shoulder Press" style={{ ...inp, marginTop:8, fontSize:12 }} />
               )}
             </div>
           )}
@@ -186,6 +222,7 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnl
                   <SetRow key={i} s={s} i={i} isDrop={isDrop} track={track} readOnly={readOnly}
                     showRIR={showRIR}
                     suggestion={suggestion}
+                    customMetric={hasCustom ? ex.customMetric : null}
                     onUpdate={(f,v) => updSet(i,f,v)}
                     onDelete={() => delSet(i)}
                   />
@@ -212,16 +249,31 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, onChange, readOnl
             </button>
           )}
 
-          {prevEntry?.note && (
+          {effectivePrev?.note && (
             <div style={{ background:"#f9fafb", border:"1px solid #eeeeee", borderRadius:8, padding:"9px 11px", marginBottom:8 }}>
               <div style={{ fontSize:10, fontWeight:700, color:"#aaa", letterSpacing:"0.07em", marginBottom:4 }}>LAST SESSION NOTE</div>
-              <div style={{ fontSize:12, color:"#555", lineHeight:1.55, fontStyle:"italic" }}>{prevEntry.note}</div>
+              <div style={{ fontSize:12, color:"#555", lineHeight:1.55, fontStyle:"italic" }}>{effectivePrev.note}</div>
             </div>
           )}
           {!readOnly && (
             <textarea value={entry?.note||""} onChange={e=>onChange({...entry, sets, note:e.target.value})} placeholder="Session note..." rows={2} style={{ ...inp, resize:"none", fontFamily:"inherit", fontSize:12 }} />
           )}
         </div>
+      )}
+
+      {dupCheck && (
+        <DuplicateExerciseModal
+          rawName={dupCheck.rawName}
+          candidates={dupCheck.candidates}
+          onMerge={candidate => { onChange({ ...entry, sets, isSub:true, subName:candidate.name, subExerciseId:candidate.id }); setDupCheck(null); }}
+          onKeepSeparate={() => {
+            const id = slugify(dupCheck.rawName), name = titleCaseExercise(dupCheck.rawName);
+            onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
+            if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, customMetric: ex.customMetric || null, createdAt: Date.now() });
+            setDupCheck(null);
+          }}
+          onClose={() => setDupCheck(null)}
+        />
       )}
     </div>
   );

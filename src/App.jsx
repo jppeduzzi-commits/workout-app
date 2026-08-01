@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { auth } from "./firebase";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import { newSplitId } from "./constants";
+import { newSplitId, slugify, titleCaseExercise } from "./constants";
+import { nameSimilarity } from "./utils";
 import {
   fbLoadSplitsForUser, fbSaveUserMeta,
   fbSaveSplit, fbDeleteSplit,
   fbPushSplitToUser, fbRegisterUsername,
+  fbMigrateExerciseCatalog, fbLoadExerciseCatalog, fbSaveExercise,
+  fbLoadSplitFresh, fbOffloadSplit,
 } from "./db";
 import OnboardScreen from "./components/OnboardScreen";
 import HomeScreen from "./components/HomeScreen";
@@ -27,18 +30,76 @@ export default function App() {
   const [settings, setSettings]           = useState({ showRIR: true, autoLog: true, autoLogHours: 4 });
   const [loadingSplits, setLoadingSplits] = useState(false);
   const [activeDay, setActiveDay]         = useState(null);
+  const [exerciseCatalog, setExerciseCatalog] = useState([]);
+  const [sharedNotice, setSharedNotice] = useState(null);
 
   const activeSplit   = splits.find(s => s.id === activeSplitId) || splits[0] || null;
   const activeProgram = activeSplit?.program || {};
   const activeDays    = activeSplit?.days || [];
 
+  // Shared splits are a live link, not a one-time copy — on every load, pull the
+  // owner's current content and overlay it. Recipient's own sessions/drafts
+  // (keyed under their own splitId) are never touched by this.
+  const overlaySharedSplits = async (name, splitsList) => {
+    const shared = splitsList.filter(s => s.sharedFrom);
+    if (shared.length === 0) return splitsList;
+    const fetched = await Promise.all(shared.map(s => fbLoadSplitFresh(s.sharedFrom.owner, s.sharedFrom.splitId).then(fresh => ({ s, fresh }))));
+    let next = splitsList;
+    const notices = [];
+    for (const { s, fresh } of fetched) {
+      if (!fresh) {
+        await fbOffloadSplit(name, s.id);
+        notices.push(`"${s.name}" is no longer shared — showing your last synced copy.`);
+        next = next.map(x => x.id === s.id ? { ...x, sharedFrom: null } : x);
+        continue;
+      }
+      const merged = { ...s, name: fresh.name, days: fresh.days, program: fresh.program };
+      if (JSON.stringify(merged) !== JSON.stringify(s)) {
+        await fbSaveSplit(name, merged);
+        next = next.map(x => x.id === s.id ? merged : x);
+      }
+    }
+    if (notices.length > 0) setSharedNotice(notices.join(" "));
+    return next;
+  };
+
   const loadSplits = (name) => {
     setLoadingSplits(true);
-    return fbLoadSplitsForUser(name).then(({ splits: s, activeSplitId: id, settings: st }) => {
-      setSplits(s);
+    return fbLoadSplitsForUser(name).then(async ({ splits: s, activeSplitId: id, settings: st }) => {
+      const overlaid = await overlaySharedSplits(name, s);
+      setSplits(overlaid);
       setActiveSplitId(id);
       if (st) setSettings(st);
+      if (overlaid.length > 0) await fbMigrateExerciseCatalog(name, overlaid);
+      const catalog = await fbLoadExerciseCatalog(name);
+      setExerciseCatalog(catalog);
       setLoadingSplits(false);
+    });
+  };
+
+  // Resolves a raw exercise name against the catalog: exact-normalized match
+  // resolves silently, otherwise the caller shows a DuplicateExerciseModal with
+  // candidates and decides merge/new/as-typed — this function never auto-decides.
+  const findExerciseCandidates = (rawName) => {
+    const id = slugify(rawName);
+    const exact = exerciseCatalog.find(e => e.id === id);
+    if (exact) return { exact, candidates: [] };
+    const name = titleCaseExercise(rawName);
+    const candidates = exerciseCatalog
+      .map(e => ({ entry: e, score: nameSimilarity(name, e.name) }))
+      .filter(c => c.score >= 0.6)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(c => c.entry);
+    return { exact: null, candidates };
+  };
+
+  const handleSaveExercise = async (exercise) => {
+    await fbSaveExercise(userName, exercise);
+    setExerciseCatalog(prev => {
+      const i = prev.findIndex(e => e.id === exercise.id);
+      if (i === -1) return [...prev, exercise];
+      const next = [...prev]; next[i] = exercise; return next;
     });
   };
 
@@ -133,7 +194,12 @@ export default function App() {
   };
 
   const handlePushSplitToUser = async (targetName, split) => {
-    await fbPushSplitToUser(targetName, split);
+    await fbPushSplitToUser(userName, targetName, split);
+  };
+
+  const handleOffloadSplit = async (splitId) => {
+    await fbOffloadSplit(userName, splitId);
+    setSplits(prev => prev.map(s => s.id === splitId ? { ...s, sharedFrom: null } : s));
   };
 
   const handleSignOut = () => {
@@ -162,6 +228,8 @@ export default function App() {
         onPerformance={() => setScreen("performance")}
         onDeleteSplit={handleDeleteSplit}
         onRefresh={handleRefresh}
+        sharedNotice={sharedNotice}
+        onDismissSharedNotice={() => setSharedNotice(null)}
       />
     </div>
   );
@@ -191,6 +259,7 @@ export default function App() {
         onReorderDays={handleReorderDays}
         onBack={() => setScreen("home")}
         onShareSplit={handlePushSplitToUser}
+        onOffloadSplit={handleOffloadSplit}
       />
     </div>
   );
@@ -201,6 +270,7 @@ export default function App() {
         userName={userName}
         splitId={activeSplit?.id || null}
         program={activeProgram}
+        exerciseCatalog={exerciseCatalog}
         onBack={() => setScreen("home")}
       />
     </div>
@@ -212,6 +282,8 @@ export default function App() {
         split={activeSplit}
         onSave={handleSaveSplit}
         onBack={() => setScreen("dayselect")}
+        findExerciseCandidates={findExerciseCandidates}
+        onSaveExercise={handleSaveExercise}
       />
     </div>
   );
@@ -231,6 +303,10 @@ export default function App() {
           autoLogHours={settings.autoLogHours}
           onBack={() => setScreen("dayselect")}
           initDay={activeDay}
+          exerciseCatalog={exerciseCatalog}
+          splits={splits}
+          findExerciseCandidates={findExerciseCandidates}
+          onSaveExercise={handleSaveExercise}
         />
       )}
     </div>

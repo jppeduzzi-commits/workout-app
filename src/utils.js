@@ -50,6 +50,27 @@ export const calcSet2Suggestion = (weight, reps, rir, target) => {
   return { weight: w, reps: projectedReps, belowRange: false };
 };
 
+// Levenshtein-based similarity, 0..1, for exercise-name duplicate detection.
+const levenshtein = (a, b) => {
+  const m = a.length, n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      d[i][j] = a[i-1] === b[j-1] ? d[i-1][j-1] : 1 + Math.min(d[i-1][j], d[i][j-1], d[i-1][j-1]);
+    }
+  }
+  return d[m][n];
+};
+
+export const nameSimilarity = (a, b) => {
+  const x = (a || "").trim().toLowerCase(), y = (b || "").trim().toLowerCase();
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  const maxLen = Math.max(x.length, y.length);
+  return 1 - levenshtein(x, y) / maxLen;
+};
+
 export const calcNextSession = (weight, reps, target, exType) => {
   const range = parseRepRange(target);
   if (!range || !weight || !reps) return null;

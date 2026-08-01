@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import ShareSplitModal from "./ShareSplitModal";
 
-export default function DaySelectScreen({ activeSplit, activeDays, activeProgram, userName, onSelectDay, onEditor, onReorderDays, onBack, onShareSplit }) {
+export default function DaySelectScreen({ activeSplit, activeDays, activeProgram, userName, onSelectDay, onEditor, onReorderDays, onBack, onShareSplit, onOffloadSplit }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
   const [sharing, setSharing] = useState(false);
+  const [confirmOffload, setConfirmOffload] = useState(false);
   const dayRefs = useRef({});
 
   useEffect(() => {
@@ -48,6 +49,9 @@ export default function DaySelectScreen({ activeSplit, activeDays, activeProgram
           <div>
             <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>Today's workout</div>
             <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.02em", lineHeight:1.1 }}>{activeSplit?.name || "No split selected"}</div>
+            {activeSplit?.sharedFrom && (
+              <div style={{ fontSize:11, color:"#bbb", marginTop:4 }}>Shared from {activeSplit.sharedFrom.owner}</div>
+            )}
           </div>
           {activeSplit && (
             <button onClick={() => setSharing(true)}
@@ -56,6 +60,13 @@ export default function DaySelectScreen({ activeSplit, activeDays, activeProgram
             </button>
           )}
         </div>
+
+        {activeSplit?.sharedFrom && (
+          <button onClick={() => confirmOffload ? (onOffloadSplit(activeSplit.id), setConfirmOffload(false)) : setConfirmOffload(true)}
+            style={{ display:"block", width:"100%", marginBottom:16, padding:"10px 14px", background: confirmOffload ? "#fee2e2" : "#fff", border: confirmOffload ? "1.5px solid #fca5a5" : "1.5px solid #e8e8e8", borderRadius:12, cursor:"pointer", textAlign:"left", fontFamily:"inherit", color: confirmOffload ? "#dc2626" : "#888", fontSize:12, fontWeight:700 }}>
+            {confirmOffload ? "Tap again to confirm — this stops syncing with the original" : "Offload — make this my own independent copy"}
+          </button>
+        )}
 
         {activeDays.length > 0 ? displayDays.map(dk => {
           const origIdx = activeDays.indexOf(dk);

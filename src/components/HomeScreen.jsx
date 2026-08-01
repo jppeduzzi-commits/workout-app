@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function HomeScreen({ userName, splits, activeSplitId, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit, onRefresh }) {
+export default function HomeScreen({ userName, splits, activeSplitId, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit, onRefresh, sharedNotice, onDismissSharedNotice }) {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -33,6 +33,12 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
           </div>
         </div>
 
+        {sharedNotice && (
+          <div onClick={onDismissSharedNotice} style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:12, padding:"10px 14px", fontSize:12, color:"#92400e", marginBottom:16, cursor:"pointer" }}>
+            {sharedNotice}
+          </div>
+        )}
+
         <div style={{ fontSize:11, fontWeight:700, color:"#bbb", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:12 }}>Your splits</div>
 
         {loadingSplits ? (
@@ -59,6 +65,7 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
                   </div>
                   <div style={{ fontSize:12, fontWeight:600, color: isActive ? "#666" : "#bbb", marginTop:5 }}>
                     {split.days.length} {split.days.length === 1 ? "day" : "days"}
+                    {split.sharedFrom && ` · Shared from ${split.sharedFrom.owner}`}
                   </div>
                 </button>
                 <button

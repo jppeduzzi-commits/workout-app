@@ -14,10 +14,15 @@ export const EX_TYPES = [
 export const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 export const TODAY = () => { const d = new Date(); return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };
 export const TODAYFMT = () => { const d = new Date(); return `${DAYS[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };
-export const fmtDate = str => {
+export const parseDateStr = str => {
   if (!str) return null;
   const [m,d,y] = str.split("/");
-  const dt = new Date(2000+parseInt(y), parseInt(m)-1, parseInt(d));
+  return new Date(2000+parseInt(y), parseInt(m)-1, parseInt(d));
+};
+export const fmtDate = str => {
+  const dt = parseDateStr(str);
+  if (!dt) return null;
+  const [m,d,y] = str.split("/");
   return `${DAYS[dt.getDay()]} ${m}/${d}/${y}`;
 };
 export const copy = x => JSON.parse(JSON.stringify(x));
@@ -25,6 +30,16 @@ export const uid = () => `ex_${Date.now()}_${Math.random().toString(36).slice(2,
 export const newSplitId = () => `sp_${Date.now()}_${Math.random().toString(36).slice(2,5)}`;
 export const roundTo = (n, step) => Math.round(n / step) * step;
 export const PCTS = [95, 90, 85, 80, 75, 70, 65];
+
+// Per-word title case for exercise names — leaves already-all-caps tokens (DB, RDL, OHP) alone.
+export const titleCaseExercise = name => (name || "").trim().split(/\s+/).map(w => {
+  if (w.length > 1 && w === w.toUpperCase() && /[A-Z]/.test(w)) return w;
+  return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+}).join(" ");
+
+// Deterministic exercise catalog id derived from the name — same exercise name
+// always resolves to the same id, across splits, devices, and shared copies.
+export const slugify = name => (name || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "exercise";
 
 export const inp = {
   background:"#f8f8f8", border:"1px solid #e8e8e8", borderRadius:7,

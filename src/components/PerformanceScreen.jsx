@@ -1,42 +1,28 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { inp, fmtDate } from "../constants";
 import { calc1RM } from "../utils";
-import { fbLoadSessions } from "../db";
 
-export default function PerformanceScreen({ userName, splitId, program, onBack }) {
+export default function PerformanceScreen({ userName, splitId, program, exerciseCatalog, onBack }) {
   const [tab, setTab] = useState("prs");
-  const [allSessions, setAllSessions] = useState({});
-  const [loading, setLoading] = useState(true);
   const [calcWeight, setCalcWeight] = useState("");
   const [calcReps, setCalcReps] = useState("");
 
-  useEffect(() => {
-    if (!userName || !splitId) { setLoading(false); return; }
-    setLoading(true);
-    const dayKeys = Object.keys(program);
-    Promise.all(dayKeys.map(dk => fbLoadSessions(userName, splitId, dk).then(s => [dk, s]))).then(results => {
-      const map = {};
-      results.forEach(([dk, s]) => { map[dk] = s; });
-      setAllSessions(map);
-      setLoading(false);
-    });
-  }, [userName, splitId, program]);
+  const catalogById = {};
+  (exerciseCatalog || []).forEach(e => { catalogById[e.id] = e; });
 
   const prs = [];
   Object.keys(program).forEach(dk => {
     const exercises = program[dk].exercises || [];
-    const sessions = allSessions[dk] || [];
     exercises.forEach(ex => {
-      const isCompound = ex.exType === "compound" || (!ex.exType && ex.trackingType === "reps");
-      if (!isCompound) return;
+      const isCompound = ex.exType === "compound" && ex.trackingType === "reps";
+      if (!isCompound || !ex.exerciseId) return;
+      const log = catalogById[ex.exerciseId]?.log || [];
       let bestSet = null, best1RM = 0;
-      sessions.forEach(s => {
-        const e = s.entries?.[ex.id];
-        if (!e?.sets) return;
-        e.sets.forEach(set => {
+      log.forEach(entry => {
+        (entry.sets || []).forEach(set => {
           if (!set.bw && set.weight && set.perf) {
             const orm = calc1RM(set.weight, set.perf, set.rir != null ? parseFloat(set.rir) : 1);
-            if (orm && orm > best1RM) { best1RM = orm; bestSet = { ...set, date: s.date }; }
+            if (orm && orm > best1RM) { best1RM = orm; bestSet = { ...set, date: entry.date }; }
           }
         });
       });
@@ -65,9 +51,7 @@ export default function PerformanceScreen({ userName, splitId, program, onBack }
 
       <div style={{ flex:1, overflowY:"auto", padding:16 }}>
         {tab === "prs" && (
-          loading ? (
-            <div style={{ textAlign:"center", color:"#bbb", padding:40 }}>Loading...</div>
-          ) : prs.length === 0 ? (
+          prs.length === 0 ? (
             <div style={{ textAlign:"center", padding:"60px 20px", color:"#bbb" }}>
               <div style={{ fontSize:36, marginBottom:12 }}>🏋️</div>
               <div style={{ fontSize:15, fontWeight:700, color:"#888", marginBottom:8 }}>No compound PRs yet</div>

@@ -20,7 +20,7 @@ export default function ShareSplitModal({ split, currentUser, onShare, onClose }
       <div onClick={e=>e.stopPropagation()} style={{ width:"100%", background:"#fff", borderRadius:"18px 18px 0 0", padding:"24px 20px 40px" }}>
         <div style={{ fontSize:17, fontWeight:900, color:"#0a0a0a", marginBottom:6 }}>Share split</div>
         <div style={{ fontSize:12, color:"#888", marginBottom:20, lineHeight:1.5 }}>
-          <strong>"{split?.name}"</strong> will be copied to the recipient as their own independent split. Changes you make after sharing won't sync automatically.
+          <strong>"{split?.name}"</strong> will be shared as a live copy — edits you make afterward keep it updated for them on their next refresh. They can offload it to break the link and make it fully their own.
         </div>
         <input value={targetUser} onChange={e=>setTargetUser(e.target.value)}
           placeholder="Recipient username" autoCorrect="off" autoCapitalize="words" spellCheck={false}

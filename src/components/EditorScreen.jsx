@@ -3,7 +3,7 @@ import { copy, inp } from "../constants";
 import EditorExRow from "./EditorExRow";
 import AddModal from "./AddModal";
 
-export default function EditorScreen({ split, onSave, onBack }) {
+export default function EditorScreen({ split, onSave, onBack, findExerciseCandidates, onSaveExercise }) {
   const [splitName, setSplitName]       = useState(split?.name || "");
   const [editingSplitName, setEditingSplitName] = useState(false);
   const [editDays, setEditDays]         = useState(() => [...(split?.days || [])]);
@@ -167,6 +167,8 @@ export default function EditorScreen({ split, onSave, onBack }) {
               onGripStart={setDragId}
               elRef={el => refs.current[ex.id] = el}
               isDragging={dragId === ex.id}
+              findExerciseCandidates={findExerciseCandidates}
+              onSaveExercise={onSaveExercise}
             />
           ))}
           <button onClick={() => setShowAdd(true)} style={{ width:"100%", padding:11, background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:10, color:"#bbb", fontSize:12, fontFamily:"inherit", fontWeight:600, cursor:"pointer", marginTop:4 }}>+ Add exercise</button>
@@ -181,7 +183,7 @@ export default function EditorScreen({ split, onSave, onBack }) {
         </button>
       </div>
 
-      {showAdd && <AddModal onAdd={ex => { setExs([...exs, ex]); setShowAdd(false); }} onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddModal onAdd={ex => { setExs([...exs, ex]); setShowAdd(false); }} onClose={() => setShowAdd(false)} findExerciseCandidates={findExerciseCandidates} onSaveExercise={onSaveExercise} />}
     </div>
   );
 }

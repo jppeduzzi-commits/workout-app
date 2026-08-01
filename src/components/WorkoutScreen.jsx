@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { TODAY, TODAYFMT, fmtDate } from "../constants";
-import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft } from "../db";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { TODAY, TODAYFMT, fmtDate, parseDateStr } from "../constants";
+import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft, fbAppendExerciseLog } from "../db";
 import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
 
-export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, showRIR, autoLog, autoLogHours }) {
+export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, showRIR, autoLog, autoLogHours, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -62,35 +62,51 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
     setSaved(false);
   }, [userName, splitId, activeDay]);
 
-  const getPrev = (id, name) => {
-    for (let i = sessions.length - 1; i >= 0; i--) {
-      const e = sessions[i]?.entries?.[id];
-      if (e) return e;
-    }
-    if (name && curDay) {
-      const altIds = (curDay.exercises || []).filter(e => e.id !== id && e.name.toLowerCase() === name.toLowerCase()).map(e => e.id);
-      for (const altId of altIds) {
-        for (let i = sessions.length - 1; i >= 0; i--) {
-          const e = sessions[i]?.entries?.[altId];
-          if (e) return e;
-        }
-      }
-    }
-    return null;
+  const catalogById = useMemo(() => {
+    const m = {};
+    (exerciseCatalog || []).forEach(e => { m[e.id] = e; });
+    return m;
+  }, [exerciseCatalog]);
+
+  // Global, cross-split history lookup by exerciseId — not scoped to this split/day.
+  const getPrev = (exerciseId) => {
+    if (!exerciseId) return null;
+    const log = catalogById[exerciseId]?.log || [];
+    if (log.length === 0) return null;
+    const latest = [...log].sort((a, b) => (parseDateStr(b.date)?.getTime() || 0) - (parseDateStr(a.date)?.getTime() || 0))[0];
+    const fromOtherSplit = latest.splitId && latest.splitId !== splitId;
+    const viaSplit = fromOtherSplit ? (splits || []).find(s => s.id === latest.splitId)?.name || null : null;
+    return { sets: latest.sets, note: latest.note, isSub: latest.isSub, subName: latest.subName, _viaSplit: viaSplit };
   };
 
   const handleSave = async () => {
     setConfirmLog(false);
     setSaving(true);
-    const next = [...sessions, { date: TODAY(), entries: current }];
+    const date = TODAY();
+    const next = [...sessions, { date, entries: current }];
     await fbSaveSessions(userName, splitId, activeDay, next);
     await fbClearDraft(userName, splitId, activeDay);
+
+    // Mirror each logged exercise into the global catalog log, keyed by
+    // resolved identity — substitutions redirect to their own exerciseId.
+    const exs = curDay?.exercises || [];
+    exs.forEach((ex, index) => {
+      const entry = current[ex.id];
+      if (!entry) return;
+      const hasData = entry.sets?.some(s => s.weight || s.perf || s.weight2 || s.perf2 || s.bw || s.bw2);
+      if (!hasData) return;
+      const targetId = entry.subExerciseId || ex.exerciseId;
+      if (!targetId) return;
+      const logEntry = { date, splitId, dayKey: activeDay, exerciseIndex: index, sets: entry.sets, note: entry.note || null, isSub: entry.isSub || false, subName: entry.subName || null };
+      fbAppendExerciseLog(userName, targetId, logEntry);
+    });
+
     setSessions(next); setCurrent({});
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
 
-  if (analysisEx) return <AnalysisScreen ex={analysisEx} sessions={sessions} onBack={() => setAnalysisEx(null)} />;
+  if (analysisEx) return <AnalysisScreen ex={analysisEx} log={catalogById[analysisEx.exerciseId]?.log || []} onBack={() => setAnalysisEx(null)} />;
 
   return (
     <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", height:"100dvh" }}>
@@ -141,10 +157,13 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
         ) : curDay.exercises.map(ex => (
           <ExerciseLogRow key={ex.id} ex={ex}
             entry={current[ex.id] || null}
-            prevEntry={getPrev(ex.id, ex.name)}
+            prevEntry={getPrev(ex.exerciseId)}
+            subPrevEntry={getPrev(current[ex.id]?.subExerciseId)}
             onChange={val => handleChange(ex.id, val)}
             sessions={sessions}
             showRIR={showRIR}
+            findExerciseCandidates={findExerciseCandidates}
+            onSaveExercise={onSaveExercise}
             onViewAnalysis={() => setAnalysisEx(ex)}
           />
         ))}
