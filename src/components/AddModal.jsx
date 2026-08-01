@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TRACK, EX_TYPES, inp, uid, titleCaseExercise, slugify } from "../constants";
+import { TRACK, EX_TYPES, inp, uid, titleCase, slugify } from "../constants";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
 
 export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSaveExercise }) {
@@ -103,7 +103,7 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
     } else if (candidates.length > 0) {
       setDupCheck({ rawName: ex.name, candidates });
     } else {
-      applyResolved({ exerciseId: slugify(ex.name), name: titleCaseExercise(ex.name) });
+      applyResolved({ exerciseId: slugify(ex.name), name: titleCase(ex.name) });
     }
   };
 
@@ -137,7 +137,7 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
           rawName={dupCheck.rawName}
           candidates={dupCheck.candidates}
           onMerge={candidate => { applyResolved({ exerciseId: candidate.id, name: candidate.name, trackingType: candidate.trackingType, exType: candidate.exType }); setDupCheck(null); }}
-          onKeepSeparate={() => { applyResolved({ exerciseId: slugify(dupCheck.rawName), name: titleCaseExercise(dupCheck.rawName) }); setDupCheck(null); }}
+          onKeepSeparate={() => { applyResolved({ exerciseId: slugify(dupCheck.rawName), name: titleCase(dupCheck.rawName) }); setDupCheck(null); }}
           onClose={() => setDupCheck(null)}
         />
       )}

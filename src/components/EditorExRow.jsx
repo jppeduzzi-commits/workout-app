@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TRACK, EX_TYPES, inp, titleCaseExercise, slugify } from "../constants";
+import { TRACK, EX_TYPES, inp, titleCase, slugify } from "../constants";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
 
 export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef, isDragging, findExerciseCandidates, onSaveExercise }) {
@@ -16,7 +16,7 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
       setDupCheck({ rawName, candidates });
     } else {
       const id = slugify(rawName);
-      const name = titleCaseExercise(rawName);
+      const name = titleCase(rawName);
       onUpdate({ ...ex, name, exerciseId: id });
       if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
     }
@@ -75,7 +75,7 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
           candidates={dupCheck.candidates}
           onMerge={candidate => { onUpdate({ ...ex, name: candidate.name, exerciseId: candidate.id, trackingType: candidate.trackingType, exType: candidate.exType }); setDupCheck(null); }}
           onKeepSeparate={() => {
-            const id = slugify(dupCheck.rawName), name = titleCaseExercise(dupCheck.rawName);
+            const id = slugify(dupCheck.rawName), name = titleCase(dupCheck.rawName);
             onUpdate({ ...ex, name, exerciseId: id });
             if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
             setDupCheck(null);

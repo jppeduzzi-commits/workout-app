@@ -1,6 +1,6 @@
 import { db } from "./firebase";
 import { doc, getDoc, getDocFromServer, setDoc, getDocs, deleteDoc, collection, query, where, documentId, arrayUnion, writeBatch } from "firebase/firestore";
-import { copy, slugify, titleCaseExercise, newSplitId } from "./constants";
+import { copy, slugify, titleCase, newSplitId } from "./constants";
 
 // Primary data key is the user's canonical NAME, not Firebase UID.
 // UID is anonymous and device-specific — name works across any device.
@@ -154,7 +154,7 @@ export async function fbMigrateExerciseCatalog(name, splits) {
           if (slot.exerciseId) return;
           const id = slugify(slot.name);
           if (!catalogMap[id]) {
-            const entry = { id, name: titleCaseExercise(slot.name) || slot.name, trackingType: slot.trackingType || "reps", exType: slot.exType || "compound", createdAt: Date.now(), log: [] };
+            const entry = { id, name: titleCase(slot.name) || slot.name, trackingType: slot.trackingType || "reps", exType: slot.exType || "compound", createdAt: Date.now(), log: [] };
             catalogMap[id] = entry;
             newEntries[id] = entry;
           }

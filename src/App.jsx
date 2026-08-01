@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { auth } from "./firebase";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import { newSplitId, slugify, titleCaseExercise } from "./constants";
+import { newSplitId, slugify, titleCase } from "./constants";
 import { nameSimilarity } from "./utils";
 import {
   fbLoadSplitsForUser, fbSaveUserMeta,
@@ -84,7 +84,7 @@ export default function App() {
     const id = slugify(rawName);
     const exact = exerciseCatalog.find(e => e.id === id);
     if (exact) return { exact, candidates: [] };
-    const name = titleCaseExercise(rawName);
+    const name = titleCase(rawName);
     const candidates = exerciseCatalog
       .map(e => ({ entry: e, score: nameSimilarity(name, e.name) }))
       .filter(c => c.score >= 0.6)

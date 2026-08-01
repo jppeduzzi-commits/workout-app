@@ -35,8 +35,9 @@ export const newSplitId = () => `sp_${Date.now()}_${Math.random().toString(36).s
 export const roundTo = (n, step) => Math.round(n / step) * step;
 export const PCTS = [95, 90, 85, 80, 75, 70, 65];
 
-// Per-word title case for exercise names — leaves already-all-caps tokens (DB, RDL, OHP) alone.
-export const titleCaseExercise = name => (name || "").trim().split(/\s+/).map(w => {
+// Per-word title case for user-typed titles (splits, days, exercises) — leaves
+// already-all-caps tokens (DB, RDL, OHP) alone.
+export const titleCase = name => (name || "").trim().split(/\s+/).map(w => {
   if (w.length > 1 && w === w.toUpperCase() && /[A-Z]/.test(w)) return w;
   return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
 }).join(" ");

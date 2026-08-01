@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TRACK, inp, roundTo, titleCaseExercise, slugify } from "../constants";
+import { TRACK, inp, roundTo, titleCase, slugify } from "../constants";
 import { parseRepRange, calcSet2Suggestion } from "../utils";
 import SetRow from "./SetRow";
 import Tag from "./Tag";
@@ -41,7 +41,7 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
     } else if (candidates.length > 0) {
       setDupCheck({ rawName, candidates });
     } else {
-      const id = slugify(rawName), name = titleCaseExercise(rawName);
+      const id = slugify(rawName), name = titleCase(rawName);
       onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
       if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
     }
@@ -268,7 +268,7 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
           candidates={dupCheck.candidates}
           onMerge={candidate => { onChange({ ...entry, sets, isSub:true, subName:candidate.name, subExerciseId:candidate.id }); setDupCheck(null); }}
           onKeepSeparate={() => {
-            const id = slugify(dupCheck.rawName), name = titleCaseExercise(dupCheck.rawName);
+            const id = slugify(dupCheck.rawName), name = titleCase(dupCheck.rawName);
             onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
             if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
             setDupCheck(null);

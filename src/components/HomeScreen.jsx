@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { titleCase } from "../constants";
 
 export default function HomeScreen({ userName, splits, activeSplitId, loadingSplits, onSelectSplit, onCreateSplit, onSettings, onPerformance, onDeleteSplit, onRefresh, sharedNotice, onDismissSharedNotice }) {
   const [showNew, setShowNew] = useState(false);
@@ -6,7 +7,7 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const submit = () => {
-    const n = newName.trim();
+    const n = titleCase(newName);
     if (!n) return;
     onCreateSplit(n);
     setShowNew(false);

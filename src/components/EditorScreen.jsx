@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { copy, inp } from "../constants";
+import { copy, inp, titleCase } from "../constants";
 import EditorExRow from "./EditorExRow";
 import AddModal from "./AddModal";
 
@@ -46,7 +46,7 @@ export default function EditorScreen({ split, onSave, onBack, findExerciseCandid
   })() : exs;
 
   const handleAddDay = () => {
-    const name = newDayName.trim();
+    const name = titleCase(newDayName);
     if (!name) return;
     setEditDays(d => [...d, name]);
     setProg(p => ({ ...p, [name]: { label: name, subtitle: "", exercises: [] } }));
@@ -62,7 +62,7 @@ export default function EditorScreen({ split, onSave, onBack, findExerciseCandid
   };
 
   const handleRenameDay = (oldKey, newKey) => {
-    const trimmed = newKey.trim();
+    const trimmed = titleCase(newKey);
     if (!trimmed || trimmed === oldKey) { setRenamingDay(null); return; }
     setEditDays(d => d.map(dk => dk === oldKey ? trimmed : dk));
     setProg(p => {
@@ -77,7 +77,7 @@ export default function EditorScreen({ split, onSave, onBack, findExerciseCandid
 
   const doSave = async () => {
     setSaving(true);
-    await onSave({ ...split, name: splitName.trim() || split.name, days: editDays, program: prog });
+    await onSave({ ...split, name: titleCase(splitName) || split.name, days: editDays, program: prog });
     setSaving(false); setSaved(true);
     setTimeout(() => { setSaved(false); onBack(); }, 900);
   };
@@ -99,7 +99,7 @@ export default function EditorScreen({ split, onSave, onBack, findExerciseCandid
           <div style={{ fontSize:10, color:"#bbb", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>Split name</div>
           {editingSplitName ? (
             <input autoFocus value={splitName} onChange={e => setSplitName(e.target.value)}
-              onBlur={() => setEditingSplitName(false)}
+              onBlur={() => { setSplitName(n => titleCase(n) || split.name); setEditingSplitName(false); }}
               onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setEditingSplitName(false); }}
               style={{ ...inp, fontSize:15, fontWeight:800 }} />
           ) : (
