@@ -1,15 +1,15 @@
 import { useState, useRef } from "react";
 import { inp } from "../constants";
 
-export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDelete, showRIR, suggestion }) {
+export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDelete, effortScale, suggestion }) {
   const rowBg     = isDrop ? "#fffbeb" : "#f8f8f8";
   const rowBorder = isDrop ? "1px solid #fde68a" : "1px solid #e8e8e8";
   const [offset, setOffset] = useState(0);
   const [swiping, setSwiping] = useState(false);
   const startX = useRef(null);
   const DELETE_W = 72;
-  const isReps = track.key === "reps";
   const pairWithReps = !!track.pairWithReps;
+  const showEffort = effortScale === "rir" || effortScale === "rpe";
 
   const onTouchStart = e => {
     if (readOnly) return;
@@ -27,9 +27,12 @@ export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDele
     startX.current = null;
   };
 
-  const gridCols = pairWithReps
-    ? "20px 1fr 1fr 1fr 56px"
-    : (isReps && showRIR ? "20px 1fr 1fr 52px 56px" : "20px 1fr 1fr 56px");
+  const gridCols = [
+    "20px", "1fr", "1fr",
+    pairWithReps ? "1fr" : null,
+    showEffort ? "52px" : null,
+    "56px",
+  ].filter(Boolean).join(" ");
 
   return (
     <div style={{ marginBottom: suggestion ? 2 : 6 }}>
@@ -60,7 +63,7 @@ export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDele
               <input disabled={readOnly} value={s.reps||""} onChange={e=>onUpdate("reps",e.target.value)} placeholder="reps" style={{ ...inp, padding:"5px 7px", fontSize:12, background:rowBg, border:rowBorder }} />
             )}
 
-            {isReps && showRIR && (
+            {effortScale === "rir" && (
               <select
                 disabled={readOnly}
                 value={s.rir === null || s.rir === undefined ? "" : String(s.rir)}
@@ -77,9 +80,26 @@ export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDele
               </select>
             )}
 
+            {effortScale === "rpe" && (
+              <select
+                disabled={readOnly}
+                value={s.rpe === null || s.rpe === undefined ? "" : String(s.rpe)}
+                onChange={e => onUpdate("rpe", e.target.value === "" ? null : parseInt(e.target.value))}
+                style={{ ...inp, padding:"5px 3px", fontSize:12, background:s.rpe != null ? "#0a0a0a" : "#f8f8f8", color:s.rpe != null ? "#fff" : "#999", border:`1px solid ${s.rpe != null ? "#0a0a0a" : "#e8e8e8"}`, cursor:"pointer", borderRadius:6, textAlign:"center", appearance:"none", WebkitAppearance:"none" }}
+              >
+                <option value="">RPE</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+              </select>
+            )}
+
             <div style={{ fontSize:11, textAlign:"right", paddingLeft:2, color:s._prevIsSub?"#f59e0b":"#bbb", fontWeight:s._prevIsSub?700:400, lineHeight:1.3 }}>
               {(!s._prev || s._prev==="—") ? "—" : s._prevIsSub ? `↻ ${s._prev}` : s._prev}
               {s._prevRir != null && <div style={{ fontSize:9, color:"#d1d5db", fontWeight:400 }}>@{s._prevRir === 5 ? "5+" : s._prevRir}</div>}
+              {s._prevRir == null && s._prevRpe != null && <div style={{ fontSize:9, color:"#d1d5db", fontWeight:400 }}>@{s._prevRpe} RPE</div>}
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { calc1RM, calcNextSession } from "../utils";
+import { calc1RM, calcNextSession, effortToRIR } from "../utils";
 import { PCTS, TRACK, fmtDate, parseDateStr, inp } from "../constants";
 
 export default function AnalysisScreen({ ex, log, onBack }) {
@@ -23,12 +23,13 @@ export default function AnalysisScreen({ ex, log, onBack }) {
   sortedLog.forEach(entry => {
     if (!entry?.sets) return;
     entry.sets.forEach(set => {
+      const effRir = effortToRIR(set);
       if (pairWithReps) {
         if (set.perf && set.reps) {
-          numericSets.push({ date:entry.date, weight: set.bw ? null : (parseFloat(set.weight) || null), bw: !!set.bw, value: set.perf, reps: parseFloat(set.reps), rir: set.rir != null ? parseFloat(set.rir) : 1 });
+          numericSets.push({ date:entry.date, weight: set.bw ? null : (parseFloat(set.weight) || null), bw: !!set.bw, value: set.perf, reps: parseFloat(set.reps), rir: set.rir, rpe: set.rpe, effRir });
         }
       } else if (!set.bw && set.weight && set.perf) {
-        numericSets.push({ date:entry.date, weight:parseFloat(set.weight), reps:parseFloat(set.perf), rir:set.rir != null ? parseFloat(set.rir) : 1 });
+        numericSets.push({ date:entry.date, weight:parseFloat(set.weight), reps:parseFloat(set.perf), rir: set.rir, rpe: set.rpe, effRir });
       }
     });
   });
@@ -44,7 +45,7 @@ export default function AnalysisScreen({ ex, log, onBack }) {
     });
   } else if (isReps) {
     numericSets.forEach(s => {
-      const orm = calc1RM(s.weight, s.reps, s.rir);
+      const orm = calc1RM(s.weight, s.reps, s.effRir != null ? s.effRir : 1);
       if (orm && orm > best1RM) { best1RM = orm; bestSet = s; }
     });
   } else {
@@ -136,7 +137,7 @@ export default function AnalysisScreen({ ex, log, onBack }) {
               ) : (
                 <div style={{ fontSize:26, fontWeight:900, color:"#0a0a0a", marginBottom:4 }}>{bestSet.weight}lbs × {bestSet.reps} reps</div>
               )}
-              <div style={{ fontSize:11, color:"#bbb" }}>{!pairWithReps && `RIR ${bestSet.rir} · `}{fmtDate(bestSet.date) || bestSet.date}</div>
+              <div style={{ fontSize:11, color:"#bbb" }}>{!pairWithReps && bestSet.rir != null ? `RIR ${bestSet.rir} · ` : !pairWithReps && bestSet.rpe != null ? `RPE ${bestSet.rpe} · ` : ""}{fmtDate(bestSet.date) || bestSet.date}</div>
             </div>
 
             {showPercentages && best1RM && (
@@ -189,7 +190,7 @@ export default function AnalysisScreen({ ex, log, onBack }) {
                   ? s.sets.filter(st => st.perf && st.reps).sort((a,b) => (parseFloat(b.perf)||0) - (parseFloat(a.perf)||0))[0]
                   : s.sets.filter(st => st.weight && st.perf && !st.bw).sort((a,b) => parseFloat(b.weight)*parseFloat(b.perf) - parseFloat(a.weight)*parseFloat(a.perf))[0];
                 if (!top) return null;
-                const orm = isReps && isCompound ? calc1RM(top.weight, top.perf, top.rir != null ? top.rir : 1) : null;
+                const orm = isReps && isCompound ? calc1RM(top.weight, top.perf, effortToRIR(top) != null ? effortToRIR(top) : 1) : null;
                 return (
                   <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:i < recent.length-1 ? "1px solid #f0f0f0" : "none" }}>
                     <div>
@@ -198,7 +199,7 @@ export default function AnalysisScreen({ ex, log, onBack }) {
                       ) : (
                         <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>{top.weight}lbs × {top.perf}</div>
                       )}
-                      <div style={{ fontSize:11, color:"#bbb" }}>{!pairWithReps && top.rir != null ? `RIR ${top.rir} · ` : ""}{fmtDate(s.date) || s.date}</div>
+                      <div style={{ fontSize:11, color:"#bbb" }}>{!pairWithReps && top.rir != null ? `RIR ${top.rir} · ` : !pairWithReps && top.rpe != null ? `RPE ${top.rpe} · ` : ""}{fmtDate(s.date) || s.date}</div>
                     </div>
                     {orm && <span style={{ fontSize:12, color:"#888", fontWeight:700 }}>~{orm} 1RM</span>}
                   </div>

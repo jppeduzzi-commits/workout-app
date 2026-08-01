@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { TRACK, inp, roundTo, titleCase, slugify } from "../constants";
-import { parseRepRange, calcSet2Suggestion } from "../utils";
+import { parseRepRange, calcSet2Suggestion, effortToRIR } from "../utils";
 import SetRow from "./SetRow";
 import Tag from "./Tag";
 import Toggle from "./Toggle";
@@ -8,12 +8,12 @@ import DuplicateExerciseModal from "./DuplicateExerciseModal";
 
 function makeRows(ex) {
   const base = ex.isSuperset
-    ? { bw:false, weight:"", perf:"", rir:null, bw2:false, weight2:"", perf2:"" }
-    : { bw:false, weight:"", perf:"", rir:null, reps:"" };
+    ? { bw:false, weight:"", perf:"", rir:null, rpe:null, bw2:false, weight2:"", perf2:"" }
+    : { bw:false, weight:"", perf:"", rir:null, rpe:null, reps:"" };
   return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
-export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, showRIR, findExerciseCandidates, onSaveExercise }) {
+export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale, findExerciseCandidates, onSaveExercise }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
   const track    = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
@@ -49,6 +49,8 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
 
   const pairWithReps = !ex.isSuperset && !!track.pairWithReps;
 
+  const showEffort = !ex.isSuperset && (effortScale === "rir" || effortScale === "rpe");
+
   const hasPR = !ex.isSuperset && !isSub && !prevIsSub && track.key === "reps" && prevEntry && sets.some(s => s.weight && s.perf && !s.bw) && (() => {
     const cur  = Math.max(...sets.map(s => (parseFloat(s.weight)||0) * (parseFloat(s.perf)||0)));
     const prev = Math.max(...(prevEntry.sets||[]).map(s => (parseFloat(s.weight)||0) * (parseFloat(s.perf)||0)));
@@ -76,7 +78,8 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
       ? `${weightPart}·${prevSets[i].perf||"—"}×${prevSets[i].reps||"—"}`
       : `${weightPart}×${prevSets[i].perf||"—"}`;
     const prevRir = prevSets[i].rir != null && prevSets[i].rir !== "" ? prevSets[i].rir : null;
-    return { ...s, _prev:raw, _prevIsSub:prevIsSub, _prevRir:prevRir };
+    const prevRpe = prevSets[i].rpe != null && prevSets[i].rpe !== "" ? prevSets[i].rpe : null;
+    return { ...s, _prev:raw, _prevIsSub:prevIsSub, _prevRir:prevRir, _prevRpe:prevRpe };
   });
 
   const showAnalysisBtn = ((!ex.exType || ex.exType === "compound") || ex.exType === "isolation" || ex.exType === "carries" || ex.exType === "plyometric") && track.key === "reps";
@@ -99,14 +102,17 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
     if (isDrop || i >= ex.sets - 1) return null;
     const s = sets[i];
     if (!s || !s.weight || !s.perf || s.bw) return null;
-    return calcSet2Suggestion(s.weight, s.perf, s.rir, ex.target);
+    return calcSet2Suggestion(s.weight, s.perf, effortToRIR(s), ex.target);
   };
 
   const isReps = track.key === "reps";
-  const gridCols = pairWithReps
-    ? "20px 1fr 1fr 1fr 56px"
-    : (isReps && showRIR ? "20px 1fr 1fr 52px 56px" : "20px 1fr 1fr 56px");
-  const headers  = ["#", "WEIGHT", track.label.toUpperCase(), pairWithReps && "REPS", isReps && showRIR && "RIR", "LAST"].filter(Boolean);
+  const gridCols = [
+    "20px", "1fr", "1fr",
+    pairWithReps ? "1fr" : null,
+    showEffort ? "52px" : null,
+    "56px",
+  ].filter(Boolean).join(" ");
+  const headers  = ["#", "WEIGHT", track.label.toUpperCase(), pairWithReps && "REPS", showEffort && effortScale.toUpperCase(), "LAST"].filter(Boolean);
 
   return (
     <div style={{ background:"#fff", border:`1.5px solid ${open?"#33333333":"#e8e8e8"}`, borderRadius:12, marginBottom:8, overflow:"hidden" }}>
@@ -222,7 +228,7 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
                 const suggestion = !isDrop ? getSuggestion(i) : null;
                 return (
                   <SetRow key={i} s={s} i={i} isDrop={isDrop} track={track} readOnly={readOnly}
-                    showRIR={showRIR}
+                    effortScale={showEffort ? effortScale : "none"}
                     suggestion={suggestion}
                     onUpdate={(f,v) => updSet(i,f,v)}
                     onDelete={() => delSet(i)}

@@ -4,7 +4,7 @@ import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft,
 import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
 
-export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, showRIR, autoLog, autoLogHours, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise }) {
+export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, autoLogHours, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -161,7 +161,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
             subPrevEntry={getPrev(current[ex.id]?.subExerciseId)}
             onChange={val => handleChange(ex.id, val)}
             sessions={sessions}
-            showRIR={showRIR}
+            effortScale={effortScale}
             findExerciseCandidates={findExerciseCandidates}
             onSaveExercise={onSaveExercise}
             onViewAnalysis={() => setAnalysisEx(ex)}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { inp, fmtDate } from "../constants";
-import { calc1RM } from "../utils";
+import { calc1RM, effortToRIR } from "../utils";
 
 export default function PerformanceScreen({ userName, splitId, program, exerciseCatalog, onBack }) {
   const [tab, setTab] = useState("prs");
@@ -21,7 +21,8 @@ export default function PerformanceScreen({ userName, splitId, program, exercise
       log.forEach(entry => {
         (entry.sets || []).forEach(set => {
           if (!set.bw && set.weight && set.perf) {
-            const orm = calc1RM(set.weight, set.perf, set.rir != null ? parseFloat(set.rir) : 1);
+            const rir = effortToRIR(set);
+            const orm = calc1RM(set.weight, set.perf, rir != null ? rir : 1);
             if (orm && orm > best1RM) { best1RM = orm; bestSet = { ...set, date: entry.date }; }
           }
         });
@@ -73,7 +74,7 @@ export default function PerformanceScreen({ userName, splitId, program, exercise
                     </div>
                   </div>
                   <div style={{ background:"#f5f5f5", borderRadius:8, padding:"8px 12px", fontSize:13, fontWeight:700, color:"#444" }}>
-                    {pr.bestSet.weight}lbs × {pr.bestSet.perf} reps{pr.bestSet.rir != null ? ` · RIR ${pr.bestSet.rir}` : ""}
+                    {pr.bestSet.weight}lbs × {pr.bestSet.perf} reps{pr.bestSet.rir != null ? ` · RIR ${pr.bestSet.rir}` : pr.bestSet.rpe != null ? ` · RPE ${pr.bestSet.rpe}` : ""}
                   </div>
                   <div style={{ display:"flex", gap:6, marginTop:10, overflowX:"auto" }}>
                     {[65,70,75,80,85,90,95].map(pct => (

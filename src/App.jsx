@@ -27,7 +27,7 @@ export default function App() {
   const [userName, setUserName]           = useState(null);
   const [splits, setSplits]               = useState([]);
   const [activeSplitId, setActiveSplitId] = useState(null);
-  const [settings, setSettings]           = useState({ showRIR: true, autoLog: true, autoLogHours: 4 });
+  const [settings, setSettings]           = useState({ effortScale: "rir", autoLog: true, autoLogHours: 4 });
   const [loadingSplits, setLoadingSplits] = useState(false);
   const [activeDay, setActiveDay]         = useState(null);
   const [exerciseCatalog, setExerciseCatalog] = useState([]);
@@ -298,7 +298,7 @@ export default function App() {
           splitId={activeSplit?.id || null}
           program={activeProgram}
           days={activeDays}
-          showRIR={settings.showRIR}
+          effortScale={settings.effortScale}
           autoLog={settings.autoLog}
           autoLogHours={settings.autoLogHours}
           onBack={() => setScreen("dayselect")}

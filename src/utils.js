@@ -1,5 +1,15 @@
 import { roundTo } from "./constants";
 
+// RIR and RPE are separate scales a set can be logged with (never both at
+// once — the active scale is an app-wide setting). Internal math (1RM,
+// set-2 suggestions) is written in RIR terms, so RPE gets converted:
+// RPE 10 (failure) ≈ RIR 0, RPE 6 ≈ RIR 4, etc.
+export const effortToRIR = s => {
+  if (s.rir != null && s.rir !== "") return parseFloat(s.rir);
+  if (s.rpe != null && s.rpe !== "") return Math.max(0, 10 - parseFloat(s.rpe));
+  return null;
+};
+
 // Epley formula with RIR adjustment
 export const calc1RM = (weight, reps, rir = 1) => {
   const w = parseFloat(weight), r = parseFloat(reps), ri = parseFloat(rir) ?? 1;
