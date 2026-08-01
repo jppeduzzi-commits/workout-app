@@ -6,7 +6,7 @@ import { copy, slugify, titleCase, newSplitId } from "./constants";
 // UID is anonymous and device-specific — name works across any device.
 //
 // Firestore paths:
-//   programs/{name}                              → { activeSplitId, effortScale, autoLog, autoLogHours, exerciseCatalogMigratedAt }
+//   programs/{name}                              → { activeSplitId, effortScale, autoLog, exerciseCatalogMigratedAt }
 //   programs/{name}/splits/{splitId}             → { id, name, days, program, createdAt, sharedFrom?: {owner, splitId} }
 //   programs/{name}/splits/{splitId}/sessions/{dayKey} → { sessions: [] }
 //   programs/{name}/splits/{splitId}/drafts/{dayKey}   → { draft: {}, savedAt }
@@ -36,7 +36,7 @@ export async function fbLoadSplitsForUser(name) {
       return {
         splits,
         activeSplitId: meta.activeSplitId || splits[0]?.id || null,
-        settings: { effortScale: meta.effortScale || (meta.showRIR === false ? "none" : "rir"), autoLog: meta.autoLog !== false, autoLogHours: meta.autoLogHours || 4 },
+        settings: { effortScale: meta.effortScale || (meta.showRIR === false ? "none" : "rir"), autoLog: meta.autoLog !== false },
       };
     }
 
@@ -76,7 +76,7 @@ export async function fbLoadSplitsForUser(name) {
 
     const settingsSnap = await getDoc(doc(db, "settings", c));
     const s = settingsSnap.exists() ? settingsSnap.data() : {};
-    const settings = { effortScale: s.effortScale || (s.showRIR === false ? "none" : "rir"), autoLog: s.autoLog !== false, autoLogHours: s.autoLogHours || 4 };
+    const settings = { effortScale: s.effortScale || (s.showRIR === false ? "none" : "rir"), autoLog: s.autoLog !== false };
 
     await setDoc(doc(db, "programs", c), { activeSplitId: oldActiveId, ...settings });
     return { splits: oldSplits, activeSplitId: oldActiveId, settings };

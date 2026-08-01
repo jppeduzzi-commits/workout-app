@@ -34,6 +34,7 @@ export const uid = () => `ex_${Date.now()}_${Math.random().toString(36).slice(2,
 export const newSplitId = () => `sp_${Date.now()}_${Math.random().toString(36).slice(2,5)}`;
 export const roundTo = (n, step) => Math.round(n / step) * step;
 export const PCTS = [95, 90, 85, 80, 75, 70, 65];
+export const AUTO_LOG_HOURS = 3;
 
 // Per-word title case for user-typed titles (splits, days, exercises) — leaves
 // already-all-caps tokens (DB, RDL, OHP) alone.

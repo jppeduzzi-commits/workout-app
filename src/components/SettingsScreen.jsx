@@ -53,28 +53,12 @@ export default function SettingsScreen({ userName, settings, onUpdate, onBack, o
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <div>
               <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>Auto-log workouts</div>
-              <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>Log session automatically after inactivity</div>
+              <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>Log session automatically after 3 hours of inactivity</div>
             </div>
             <div onClick={() => onUpdate("autoLog", !settings.autoLog)} style={{ width:44, height:24, borderRadius:12, background:settings.autoLog?"#16a34a":"#e8e8e8", position:"relative", cursor:"pointer", transition:"background .2s" }}>
               <div style={{ position:"absolute", top:3, left:settings.autoLog?22:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
             </div>
           </div>
-          {settings.autoLog && (
-            <div style={{ marginTop:14 }}>
-              <div style={{ fontSize:11, color:"#bbb", marginBottom:8, fontWeight:600 }}>Log after</div>
-              <div style={{ display:"flex", gap:8 }}>
-                {[2, 4, 8, 12].map(h => {
-                  const active = (settings.autoLogHours || 4) === h;
-                  return (
-                    <button key={h} onClick={() => onUpdate("autoLogHours", h)}
-                      style={{ flex:1, padding:"7px 0", background:active?"#0a0a0a":"#f5f5f5", color:active?"#fff":"#888", border:`1.5px solid ${active?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, fontSize:12, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>
-                      {h}h
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
         <button onClick={handleSignOut} style={{ display:"block", width:"100%", padding:"13px 16px", background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:12, color:"#bbb", fontSize:12, fontWeight:600, fontFamily:"inherit", cursor:"pointer", textAlign:"left" }}>

@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { TODAY, TODAYFMT, fmtDate, parseDateStr } from "../constants";
+import { TODAY, TODAYFMT, fmtDate, parseDateStr, AUTO_LOG_HOURS } from "../constants";
 import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft, fbAppendExerciseLog } from "../db";
 import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
 
-export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, autoLogHours, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise }) {
+export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -29,7 +29,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
     ]).then(([s, { draft, savedAt }]) => {
       setSessions(s);
       const hasMeaningfulData = Object.values(draft).some(e => e?.sets?.some(s => s.weight || s.reps || s.laps));
-      const thresholdMs = (autoLogHours || 4) * 3600000;
+      const thresholdMs = AUTO_LOG_HOURS * 3600000;
       const shouldAutoLog = autoLog !== false && savedAt && hasMeaningfulData && (Date.now() - savedAt) > thresholdMs;
       if (shouldAutoLog) {
         const d = new Date(savedAt);
