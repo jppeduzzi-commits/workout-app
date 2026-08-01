@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TRACK, EX_TYPES, inp, titleCase, slugify } from "../constants";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
 
-export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef, isDragging, findExerciseCandidates, onSaveExercise }) {
+export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef, isDragging, findExerciseCandidates, onSaveExercise, defaultEffortScale }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
   const track = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
@@ -56,6 +56,14 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
             <div>
               <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>TARGET {track.label.toUpperCase()}</label>
               <input value={ex.target} onChange={e=>onUpdate({...ex, target:e.target.value})} style={inp} placeholder="e.g. 8–12" />
+            </div>
+            <div>
+              <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>EFFORT TRACKING</label>
+              <select value={ex.effortScale || defaultEffortScale || "rir"} onChange={e=>onUpdate({...ex, effortScale:e.target.value})} style={{ ...inp, cursor:"pointer" }}>
+                <option value="rir">RIR</option>
+                <option value="rpe">RPE</option>
+                <option value="none">None</option>
+              </select>
             </div>
             <label style={{ display:"flex", alignItems:"center", gap:8, gridColumn:"1/-1", cursor:"pointer" }}>
               <input type="checkbox" checked={ex.hasDrop} onChange={e=>onUpdate({...ex, hasDrop:e.target.checked})} style={{ width:15, height:15 }} />

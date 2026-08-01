@@ -284,6 +284,7 @@ export default function App() {
         onBack={() => setScreen("dayselect")}
         findExerciseCandidates={findExerciseCandidates}
         onSaveExercise={handleSaveExercise}
+        defaultEffortScale={settings.effortScale}
       />
     </div>
   );

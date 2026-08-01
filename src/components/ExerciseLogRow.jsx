@@ -13,7 +13,7 @@ function makeRows(ex) {
   return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
-export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale, findExerciseCandidates, onSaveExercise }) {
+export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
   const track    = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
@@ -49,6 +49,10 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
 
   const pairWithReps = !ex.isSuperset && !!track.pairWithReps;
 
+  // Effort scale is per-exercise (a bodybuilding bench press might use RIR while
+  // a powerlifting squat uses RPE) — falls back to the app-wide default for
+  // exercises that predate this or never had it explicitly set.
+  const effortScale = ex.effortScale || defaultEffortScale || "rir";
   const showEffort = !ex.isSuperset && (effortScale === "rir" || effortScale === "rpe");
 
   const hasPR = !ex.isSuperset && !isSub && !prevIsSub && track.key === "reps" && prevEntry && sets.some(s => s.weight && s.perf && !s.bw) && (() => {
