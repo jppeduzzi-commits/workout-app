@@ -25,12 +25,17 @@ export default function HomeScreen({ userName, splits, activeSplitId, loadingSpl
             <div style={{ fontSize:44, fontWeight:900, color:"#0a0a0a", letterSpacing:"-0.04em", lineHeight:1, marginBottom:8 }}>STACK</div>
             <div style={{ fontSize:15, fontWeight:700, color:"#888" }}>Hey, {userName}</div>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
             <button onClick={onRefresh} disabled={loadingSplits}
-              style={{ background:"none", border:"none", color:"#bbb", fontSize:19, cursor:loadingSplits?"wait":"pointer", padding:"6px 0 0 0", display:"inline-block", animation: loadingSplits ? "stackSpin 0.7s linear infinite" : "none" }}>
-              ↻
+              style={{ display:"flex", alignItems:"center", gap:5, background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:20, padding:"7px 12px 7px 10px", cursor:loadingSplits?"wait":"pointer", fontFamily:"inherit" }}>
+              <span style={{ fontSize:16, color:"#888", display:"inline-block", animation: loadingSplits ? "stackSpin 0.7s linear infinite" : "none" }}>↻</span>
+              <span style={{ fontSize:11, fontWeight:800, color:"#888", letterSpacing:"0.02em" }}>Refresh</span>
             </button>
-            <button onClick={onSettings} style={{ background:"none", border:"none", color:"#bbb", fontSize:22, cursor:"pointer", padding:"6px 0 0 0" }}>⚙️</button>
+            <button onClick={onSettings}
+              style={{ display:"flex", alignItems:"center", gap:5, background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:20, padding:"7px 12px 7px 10px", cursor:"pointer", fontFamily:"inherit" }}>
+              <span style={{ fontSize:15 }}>⚙️</span>
+              <span style={{ fontSize:11, fontWeight:800, color:"#888", letterSpacing:"0.02em" }}>Settings</span>
+            </button>
           </div>
         </div>
 

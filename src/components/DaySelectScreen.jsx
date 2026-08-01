@@ -55,8 +55,9 @@ export default function DaySelectScreen({ activeSplit, activeDays, activeProgram
           </div>
           {activeSplit && (
             <button onClick={() => setSharing(true)}
-              style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:"4px 0 0 0", flexShrink:0 }}>
-              📤
+              style={{ display:"flex", alignItems:"center", gap:5, background:"#fff", border:"1.5px solid #e8e8e8", borderRadius:20, padding:"7px 12px", cursor:"pointer", fontFamily:"inherit", flexShrink:0, marginTop:2 }}>
+              <span style={{ fontSize:12, fontWeight:800, color:"#888", letterSpacing:"0.02em" }}>Share</span>
+              <span style={{ fontSize:14, color:"#888" }}>→</span>
             </button>
           )}
         </div>
