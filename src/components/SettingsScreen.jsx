@@ -40,7 +40,7 @@ export default function SettingsScreen({ userName, settings, onUpdate, onBack, o
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <div>
               <div style={{ fontSize:13, fontWeight:700, color:"#0a0a0a" }}>Effort tracking</div>
-              <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>Choose RIR or RPE per exercise when building a split</div>
+              <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>Choose RIR (reps in reserve) or RPE (rate of perceived exertion) per exercise when building a split</div>
             </div>
             <div onClick={() => onUpdate("effortScale", (settings.effortScale || "rir") === "none" ? "rir" : "none")}
               style={{ width:44, height:24, borderRadius:12, background:(settings.effortScale || "rir") !== "none" ? "#16a34a" : "#e8e8e8", position:"relative", cursor:"pointer", transition:"background .2s" }}>

@@ -60,8 +60,8 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
             <div>
               <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>EFFORT TRACKING</label>
               <select value={ex.effortScale || defaultEffortScale || "rir"} onChange={e=>onUpdate({...ex, effortScale:e.target.value})} style={{ ...inp, cursor:"pointer" }}>
-                <option value="rir">RIR</option>
-                <option value="rpe">RPE</option>
+                <option value="rir">RIR — Reps in Reserve</option>
+                <option value="rpe">RPE — Rate of Perceived Exertion</option>
                 <option value="none">None</option>
               </select>
             </div>

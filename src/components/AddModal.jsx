@@ -89,10 +89,11 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
       <input value={ex.target} onChange={e=>setEx(x=>({...x, target:e.target.value}))} placeholder={track.ph} style={{ ...inp, marginBottom:12 }} />
       <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>EFFORT TRACKING</label>
       <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-        {[{k:"rir",l:"RIR"},{k:"rpe",l:"RPE"},{k:"none",l:"None"}].map(o => (
+        {[{k:"rir",l:"RIR",d:"Reps in reserve"},{k:"rpe",l:"RPE",d:"Perceived exertion"},{k:"none",l:"None",d:"Don't track effort"}].map(o => (
           <button key={o.k} onClick={() => setEx(x=>({...x, effortScale:o.k}))}
-            style={{ flex:1, padding:"8px 0", background:ex.effortScale===o.k?"#0a0a0a":"#f5f5f5", color:ex.effortScale===o.k?"#fff":"#888", border:`1.5px solid ${ex.effortScale===o.k?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, fontSize:12, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>
-            {o.l}
+            style={{ flex:1, padding:"8px 4px", background:ex.effortScale===o.k?"#0a0a0a":"#f5f5f5", color:ex.effortScale===o.k?"#fff":"#888", border:`1.5px solid ${ex.effortScale===o.k?"#0a0a0a":"#e8e8e8"}`, borderRadius:8, fontFamily:"inherit", cursor:"pointer", textAlign:"center" }}>
+            <div style={{ fontSize:12, fontWeight:700 }}>{o.l}</div>
+            <div style={{ fontSize:9, fontWeight:400, opacity:0.75, marginTop:2 }}>{o.d}</div>
           </button>
         ))}
       </div>
