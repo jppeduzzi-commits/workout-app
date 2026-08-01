@@ -84,14 +84,19 @@ export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDele
               <select
                 disabled={readOnly}
                 value={s.rpe === null || s.rpe === undefined ? "" : String(s.rpe)}
-                onChange={e => onUpdate("rpe", e.target.value === "" ? null : parseInt(e.target.value))}
+                onChange={e => onUpdate("rpe", e.target.value === "" ? null : parseFloat(e.target.value))}
                 style={{ ...inp, padding:"5px 3px", fontSize:12, background:s.rpe != null ? "#0a0a0a" : "#f8f8f8", color:s.rpe != null ? "#fff" : "#999", border:`1px solid ${s.rpe != null ? "#0a0a0a" : "#e8e8e8"}`, cursor:"pointer", borderRadius:6, textAlign:"center", appearance:"none", WebkitAppearance:"none" }}
               >
                 <option value="">RPE</option>
+                <option value="5.5">5.5</option>
                 <option value="6">6</option>
+                <option value="6.5">6.5</option>
                 <option value="7">7</option>
+                <option value="7.5">7.5</option>
                 <option value="8">8</option>
+                <option value="8.5">8.5</option>
                 <option value="9">9</option>
+                <option value="9.5">9.5</option>
                 <option value="10">10</option>
               </select>
             )}
