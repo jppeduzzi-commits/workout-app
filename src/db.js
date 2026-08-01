@@ -111,6 +111,13 @@ export async function fbAppendExerciseLog(name, exerciseId, logEntry) {
   try { await setDoc(doc(db, "programs", can(name), "exercises", exerciseId), { log: arrayUnion(logEntry) }, { merge: true }); } catch(e) { console.error(e); }
 }
 
+// Full overwrite of an exercise's log array — used when correcting a
+// specific historical entry (editing the most recently logged session),
+// where arrayUnion's append-only semantics can't remove/replace an entry.
+export async function fbSetExerciseLog(name, exerciseId, log) {
+  try { await setDoc(doc(db, "programs", can(name), "exercises", exerciseId), { log }, { merge: true }); } catch(e) { console.error(e); }
+}
+
 // Batched lookup — Firestore "in" queries are capped at 30 ids per query.
 export async function fbLoadExercisesByIds(name, ids) {
   const c = can(name);

@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { TODAY, TODAYFMT, fmtDate, parseDateStr, AUTO_LOG_HOURS } from "../constants";
+import { TODAY, TODAYFMT, fmtDate, parseDateStr, AUTO_LOG_HOURS, copy } from "../constants";
 import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft, fbAppendExerciseLog } from "../db";
 import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
 
-export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise }) {
+export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise, onCorrectExerciseLog }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -15,6 +15,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
   const [autoLoggedMsg, setAutoLoggedMsg] = useState("");
   const [analysisEx, setAnalysisEx] = useState(null);
   const [confirmLog, setConfirmLog] = useState(false);
+  const [editingSession, setEditingSession] = useState(false);
   const autoSaveTimer = useRef(null);
   const programDays = days?.length ? days : Object.keys(program);
   const curDay      = program[activeDay];
@@ -22,7 +23,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
 
   useEffect(() => {
     if (!userName || !splitId) return;
-    setLoading(true); setCurrent({});
+    setLoading(true); setCurrent({}); setEditingSession(false);
     Promise.all([
       fbLoadSessions(userName, splitId, activeDay),
       fbLoadDraft(userName, splitId, activeDay),
@@ -51,16 +52,20 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
   const handleChange = useCallback((exId, val) => {
     setCurrent(c => {
       const next = { ...c, [exId]: val };
-      clearTimeout(autoSaveTimer.current);
-      autoSaveTimer.current = setTimeout(async () => {
-        await fbSaveDraft(userName, splitId, activeDay, next);
-        setAutoSaved(true);
-        setTimeout(() => setAutoSaved(false), 1500);
-      }, 800);
+      // Don't autosave into the "today" draft while editing a past session —
+      // abandoning the edit shouldn't leave stray data that later auto-logs.
+      if (!editingSession) {
+        clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = setTimeout(async () => {
+          await fbSaveDraft(userName, splitId, activeDay, next);
+          setAutoSaved(true);
+          setTimeout(() => setAutoSaved(false), 1500);
+        }, 800);
+      }
       return next;
     });
     setSaved(false);
-  }, [userName, splitId, activeDay]);
+  }, [userName, splitId, activeDay, editingSession]);
 
   const catalogById = useMemo(() => {
     const m = {};
@@ -102,6 +107,65 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
     });
 
     setSessions(next); setCurrent({});
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  // Reopens only the most recently logged session for this day — pre-filled
+  // exactly as submitted, so a forgotten exercise or a typo can be fixed
+  // without starting a fresh session.
+  const handleEditLastSession = () => {
+    if (!lastSession) return;
+    setCurrent(copy(lastSession.entries || {}));
+    setEditingSession(true);
+  };
+
+  const handleCancelEdit = () => {
+    setCurrent({});
+    setEditingSession(false);
+  };
+
+  const handleSaveEditedSession = async () => {
+    setConfirmLog(false);
+    setSaving(true);
+    const lastIdx = sessions.length - 1;
+    const oldSession = sessions[lastIdx];
+    const nextSessions = sessions.map((sess, idx) => idx === lastIdx ? { ...sess, entries: current } : sess);
+    await fbSaveSessions(userName, splitId, activeDay, nextSessions);
+
+    // Correct each affected exercise's global log in place — the old entry
+    // for this exact session gets removed and the new one added, rather than
+    // just appending (which would leave the old, now-wrong numbers behind).
+    const exs = curDay?.exercises || [];
+    const removalsByExId = {};
+    const additionsByExId = {};
+    exs.forEach((ex, index) => {
+      const oldEntry = oldSession.entries?.[ex.id];
+      const newEntry = current[ex.id];
+      const oldHasData = oldEntry?.sets?.some(s => s.weight || s.perf || s.weight2 || s.perf2 || s.bw || s.bw2);
+      const newHasData = newEntry?.sets?.some(s => s.weight || s.perf || s.weight2 || s.perf2 || s.bw || s.bw2);
+      const oldTargetId = oldHasData ? (oldEntry.subExerciseId || ex.exerciseId) : null;
+      const newTargetId = newHasData ? (newEntry.subExerciseId || ex.exerciseId) : null;
+      if (oldTargetId) {
+        (removalsByExId[oldTargetId] = removalsByExId[oldTargetId] || []).push({ splitId, dayKey: activeDay, exerciseIndex: index, date: oldSession.date });
+      }
+      if (newTargetId) {
+        (additionsByExId[newTargetId] = additionsByExId[newTargetId] || []).push({ date: oldSession.date, splitId, dayKey: activeDay, exerciseIndex: index, sets: newEntry.sets, note: newEntry.note || null, isSub: newEntry.isSub || false, subName: newEntry.subName || null });
+      }
+    });
+
+    const touchedIds = new Set([...Object.keys(removalsByExId), ...Object.keys(additionsByExId)]);
+    for (const exId of touchedIds) {
+      const removals = removalsByExId[exId] || [];
+      const existingLog = catalogById[exId]?.log || [];
+      const filtered = existingLog.filter(le => !removals.some(r =>
+        le.splitId === r.splitId && le.dayKey === r.dayKey && le.exerciseIndex === r.exerciseIndex && le.date === r.date
+      ));
+      const nextLog = [...filtered, ...(additionsByExId[exId] || [])];
+      if (onCorrectExerciseLog) await onCorrectExerciseLog(exId, nextLog);
+    }
+
+    setSessions(nextSessions); setCurrent({}); setEditingSession(false);
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -150,6 +214,17 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
           </div>
           {autoSaved && <div style={{ fontSize:10, color:"#16a34a", marginTop:4 }}>● Draft saved</div>}
           {autoLoggedMsg && <div style={{ fontSize:11, color:"#16a34a", fontWeight:700, marginTop:6, padding:"6px 10px", background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8 }}>{autoLoggedMsg}</div>}
+          {lastSession && !editingSession && !loading && (
+            <button onClick={handleEditLastSession} style={{ display:"block", background:"none", border:"none", color:"#2563eb", fontSize:11, fontWeight:700, cursor:"pointer", padding:0, marginTop:8 }}>
+              ✏️ Edit last logged session
+            </button>
+          )}
+          {editingSession && (
+            <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"9px 12px", marginTop:8, display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+              <span style={{ fontSize:11, color:"#1d4ed8", fontWeight:700 }}>Editing your last logged session — this will update it in place, not create a new one</span>
+              <button onClick={handleCancelEdit} style={{ background:"none", border:"none", color:"#1d4ed8", fontSize:11, fontWeight:800, cursor:"pointer", flexShrink:0 }}>Cancel</button>
+            </div>
+          )}
         </div>
 
         {loading ? (
@@ -178,19 +253,22 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
 
       <div style={{ padding:"12px 14px 16px", background:"#fff", borderTop:"1px solid #e8e8e8", flexShrink:0 }}>
         <button onClick={() => setConfirmLog(true)} disabled={saving} style={{ width:"100%", padding:14, background:saved?"#16a34a":"#0a0a0a", color:"#fff", border:"none", borderRadius:12, fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:saving?"wait":"pointer", letterSpacing:"0.06em" }}>
-          {saving ? "SAVING..." : saved ? "✓ SESSION SAVED" : "LOG SESSION"}
+          {saving ? "SAVING..." : saved ? "✓ SESSION SAVED" : editingSession ? "SAVE CHANGES" : "LOG SESSION"}
         </button>
       </div>
 
       {confirmLog && (
         <div onClick={() => setConfirmLog(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:200, display:"flex", alignItems:"flex-end" }}>
           <div onClick={e=>e.stopPropagation()} style={{ width:"100%", background:"#fff", borderRadius:"18px 18px 0 0", padding:"24px 20px 40px", fontFamily:"Barlow,sans-serif" }}>
-            <div style={{ fontSize:17, fontWeight:900, color:"#0a0a0a", marginBottom:6 }}>Log this session?</div>
+            <div style={{ fontSize:17, fontWeight:900, color:"#0a0a0a", marginBottom:6 }}>{editingSession ? "Save changes?" : "Log this session?"}</div>
             <div style={{ fontSize:12, color:"#888", marginBottom:20, lineHeight:1.5 }}>
-              This finalizes today's numbers for <strong>{curDay?.label}</strong> and clears your in-progress draft. Once logged, it becomes read-only history.
+              {editingSession
+                ? <>This updates your last logged session for <strong>{curDay?.label}</strong> in place — no new session is created.</>
+                : <>This finalizes today's numbers for <strong>{curDay?.label}</strong> and clears your in-progress draft. Once logged, it becomes read-only history.</>
+              }
             </div>
-            <button onClick={handleSave} style={{ width:"100%", padding:13, background:"#0a0a0a", color:"#fff", border:"none", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:10 }}>
-              Log session
+            <button onClick={editingSession ? handleSaveEditedSession : handleSave} style={{ width:"100%", padding:13, background:"#0a0a0a", color:"#fff", border:"none", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:10 }}>
+              {editingSession ? "Save changes" : "Log session"}
             </button>
             <button onClick={() => setConfirmLog(false)} style={{ width:"100%", padding:13, background:"none", border:"1.5px solid #e8e8e8", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:700, color:"#888", cursor:"pointer" }}>
               Cancel

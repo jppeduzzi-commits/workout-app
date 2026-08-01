@@ -7,7 +7,7 @@ import {
   fbLoadSplitsForUser, fbSaveUserMeta,
   fbSaveSplit, fbDeleteSplit,
   fbPushSplitToUser, fbRegisterUsername,
-  fbMigrateExerciseCatalog, fbLoadExerciseCatalog, fbSaveExercise,
+  fbMigrateExerciseCatalog, fbLoadExerciseCatalog, fbSaveExercise, fbSetExerciseLog,
   fbLoadSplitFresh, fbOffloadSplit,
 } from "./db";
 import OnboardScreen from "./components/OnboardScreen";
@@ -101,6 +101,14 @@ export default function App() {
       if (i === -1) return [...prev, exercise];
       const next = [...prev]; next[i] = exercise; return next;
     });
+  };
+
+  // Corrects one exercise's global log in place — used when editing the most
+  // recently logged session, where the old (now-wrong) entry needs replacing
+  // rather than a new one appended.
+  const handleCorrectExerciseLog = async (exerciseId, log) => {
+    await fbSetExerciseLog(userName, exerciseId, log);
+    setExerciseCatalog(prev => prev.map(e => e.id === exerciseId ? { ...e, log } : e));
   };
 
   // Load splits + settings whenever we know the user's name
@@ -307,6 +315,7 @@ export default function App() {
           splits={splits}
           findExerciseCandidates={findExerciseCandidates}
           onSaveExercise={handleSaveExercise}
+          onCorrectExerciseLog={handleCorrectExerciseLog}
         />
       )}
     </div>
