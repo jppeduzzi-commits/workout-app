@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { TODAY, TODAYFMT, fmtDate, parseDateStr, AUTO_LOG_HOURS, copy } from "../constants";
+import { sumReps } from "../utils";
 import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft, fbAppendExerciseLog } from "../db";
 import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
@@ -81,7 +82,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
     const latest = [...log].sort((a, b) => (parseDateStr(b.date)?.getTime() || 0) - (parseDateStr(a.date)?.getTime() || 0))[0];
     const fromOtherSplit = latest.splitId && latest.splitId !== splitId;
     const viaSplit = fromOtherSplit ? (splits || []).find(s => s.id === latest.splitId)?.name || null : null;
-    return { sets: latest.sets, note: latest.note, isSub: latest.isSub, subName: latest.subName, _viaSplit: viaSplit };
+    return { sets: latest.sets, note: latest.note, isSub: latest.isSub, subName: latest.subName, repCounter: latest.repCounter, repGoal: latest.repGoal, repTotal: latest.repTotal, _viaSplit: viaSplit };
   };
 
   const handleSave = async () => {
@@ -102,7 +103,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
       if (!hasData) return;
       const targetId = entry.subExerciseId || ex.exerciseId;
       if (!targetId) return;
-      const logEntry = { date, splitId, dayKey: activeDay, exerciseIndex: index, sets: entry.sets, note: entry.note || null, isSub: entry.isSub || false, subName: entry.subName || null };
+      const logEntry = { date, splitId, dayKey: activeDay, exerciseIndex: index, sets: entry.sets, note: entry.note || null, isSub: entry.isSub || false, subName: entry.subName || null, repCounter: entry.repCounter || false, repGoal: entry.repCounter ? (entry.repGoal || null) : null, repTotal: entry.repCounter ? sumReps(entry.sets) : null };
       fbAppendExerciseLog(userName, targetId, logEntry);
     });
 
@@ -150,7 +151,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
         (removalsByExId[oldTargetId] = removalsByExId[oldTargetId] || []).push({ splitId, dayKey: activeDay, exerciseIndex: index, date: oldSession.date });
       }
       if (newTargetId) {
-        (additionsByExId[newTargetId] = additionsByExId[newTargetId] || []).push({ date: oldSession.date, splitId, dayKey: activeDay, exerciseIndex: index, sets: newEntry.sets, note: newEntry.note || null, isSub: newEntry.isSub || false, subName: newEntry.subName || null });
+        (additionsByExId[newTargetId] = additionsByExId[newTargetId] || []).push({ date: oldSession.date, splitId, dayKey: activeDay, exerciseIndex: index, sets: newEntry.sets, note: newEntry.note || null, isSub: newEntry.isSub || false, subName: newEntry.subName || null, repCounter: newEntry.repCounter || false, repGoal: newEntry.repCounter ? (newEntry.repGoal || null) : null, repTotal: newEntry.repCounter ? sumReps(newEntry.sets) : null });
       }
     });
 

@@ -60,6 +60,10 @@ export const calcSet2Suggestion = (weight, reps, rir, target) => {
   return { weight: w, reps: projectedReps, belowRange: false };
 };
 
+// Sum of reps logged across all sets so far — the running total behind the
+// rep counter toggle (and the number persisted as repTotal on save).
+export const sumReps = sets => (sets || []).reduce((a, s) => a + (parseFloat(s.perf) || 0), 0);
+
 // Levenshtein-based similarity, 0..1, for exercise-name duplicate detection.
 const levenshtein = (a, b) => {
   const m = a.length, n = b.length;

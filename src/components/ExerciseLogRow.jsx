@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { TRACK, inp, roundTo, titleCase, slugify } from "../constants";
-import { parseRepRange, calcSet2Suggestion, effortToRIR } from "../utils";
+import { parseRepRange, calcSet2Suggestion, effortToRIR, sumReps } from "../utils";
 import SetRow from "./SetRow";
 import Tag from "./Tag";
 import Toggle from "./Toggle";
@@ -32,6 +32,28 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
   const prevSubName = effectivePrev?.subName || "";
 
   const viaSplit = effectivePrev?._viaSplit || null;
+
+  // Rep counter — an ephemeral, per-session toggle (resets off like the
+  // substitution toggle) that tallies reps across sets as they're logged and,
+  // if a target is set, counts down to it. The achieved total gets persisted
+  // on save so next session's reference number is real data, not a note.
+  const showRepCounter = !ex.isSuperset && track.key === "reps";
+  const repCounterOn = !!entry?.repCounter;
+  const repGoalStr = entry?.repGoal ?? "";
+  const repCounterTotal = sumReps(sets);
+  const goalNum = parseFloat(repGoalStr);
+  const hasGoal = repGoalStr !== "" && !isNaN(goalNum) && goalNum > 0;
+  const remaining = hasGoal ? goalNum - repCounterTotal : null;
+  const goalHit = hasGoal && remaining <= 0;
+  const counterDisplay = hasGoal
+    ? (goalHit ? `✅ ${repCounterTotal} total — goal hit` : `${remaining} to go (${repCounterTotal} of ${goalNum})`)
+    : `${repCounterTotal} done`;
+  const toggleRepCounter = () => {
+    const turningOn = !repCounterOn;
+    const prefill = (turningOn && !repGoalStr && effectivePrev?.repCounter && effectivePrev?.repTotal != null)
+      ? String(effectivePrev.repTotal) : repGoalStr;
+    onChange({ ...entry, sets, repCounter: turningOn, repGoal: prefill });
+  };
 
   const resolveSubName = (rawName) => {
     if (!rawName?.trim() || !findExerciseCandidates) { onChange({ ...entry, sets, isSub:true, subName:rawName, subExerciseId:null }); return; }
@@ -139,6 +161,9 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
           {!prevIsSub && viaSplit && !open && (
             <div style={{ fontSize:10, color:"#888", marginTop:3, fontWeight:600 }}>↻ Last logged via "{viaSplit}"</div>
           )}
+          {!repCounterOn && effectivePrev?.repCounter && effectivePrev?.repTotal != null && !open && (
+            <div style={{ fontSize:10, color:"#2563eb", marginTop:3, fontWeight:600 }}>🔢 Last: {effectivePrev.repTotal} total reps</div>
+          )}
           {toppedRange && !open && (
             <div style={{ fontSize:10, color:"#2563eb", marginTop:3, fontWeight:600 }}>
               Hit {repRange.max} reps — go heavier next session{suggestedNextWeight ? ` (~${suggestedNextWeight}lbs, round to nearest increment)` : ""}
@@ -183,6 +208,20 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
               <Toggle on={isSub} onToggle={() => onChange({...entry, sets, isSub:!isSub, subName:"", subExerciseId:null})} label="Mark as substitution" />
               {isSub && (
                 <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} onBlur={e=>resolveSubName(e.target.value)} placeholder="What did you do instead? e.g. DB Shoulder Press" style={{ ...inp, marginTop:8, fontSize:12 }} />
+              )}
+            </div>
+          )}
+
+          {!readOnly && showRepCounter && (
+            <div style={{ marginBottom:12 }}>
+              <Toggle on={repCounterOn} onToggle={toggleRepCounter} label="Rep counter" color="#2563eb" />
+              {repCounterOn ? (
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:8 }}>
+                  <input type="number" inputMode="numeric" value={repGoalStr} onChange={e=>onChange({...entry, sets, repCounter:true, repGoal:e.target.value})} placeholder="Target (optional)" style={{ ...inp, flex:1 }} />
+                  <div style={{ fontSize:12, fontWeight:800, color:goalHit?"#16a34a":"#2563eb", whiteSpace:"nowrap" }}>{counterDisplay}</div>
+                </div>
+              ) : effectivePrev?.repCounter && effectivePrev?.repTotal != null && (
+                <div style={{ fontSize:11, color:"#888", marginTop:6 }}>Last time: {effectivePrev.repTotal} total reps</div>
               )}
             </div>
           )}
