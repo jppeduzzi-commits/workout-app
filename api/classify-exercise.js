@@ -8,8 +8,10 @@
 // AI Gateway, no Firebase — just this function and a key, never exposed to
 // the client.
 
-const { generateObject } = require("ai");
-const { createAnthropic } = require("@ai-sdk/anthropic");
+// "ai" ships ESM-only — require() works in plain local Node resolution but
+// fails under Vercel's bundled runtime (ERR_REQUIRE_ESM), so it's loaded via
+// dynamic import() inside the handler instead, same as @ai-sdk/anthropic for
+// consistency. zod's CJS build is fine with require().
 const { z } = require("zod");
 
 const MUSCLE_GROUPS = ["Chest", "Back", "Shoulders", "Legs", "Arms", "Core", "Other"];
@@ -37,6 +39,8 @@ module.exports = async function handler(req, res) {
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
 
   try {
+    const { generateObject } = await import("ai");
+    const { createAnthropic } = await import("@ai-sdk/anthropic");
     const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const { object } = await generateObject({
       model: anthropic("claude-haiku-4-5-20251001"),
