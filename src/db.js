@@ -23,6 +23,10 @@ export async function fbSaveUserMeta(name, data) {
   try { await setDoc(doc(db, "programs", can(name)), data, { merge: true }); } catch(e) { console.error(e); }
 }
 
+export async function fbLoadUserMeta(name) {
+  try { const snap = await getDoc(doc(db, "programs", can(name))); return snap.exists() ? snap.data() : {}; } catch(e) { console.error(e); return {}; }
+}
+
 // ── Splits — loads from new subcollection; migrates old flat doc on first use ─
 
 export async function fbLoadSplitsForUser(name) {

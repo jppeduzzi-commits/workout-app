@@ -2,25 +2,41 @@ import { useState } from "react";
 import { TRACK, EX_TYPES, MUSCLE_GROUPS, inferMuscleGroup, inp, titleCase, slugify } from "../constants";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
 
-export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef, isDragging, findExerciseCandidates, onSaveExercise, defaultEffortScale }) {
+export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef, isDragging, findExerciseCandidates, onSaveExercise, classifyNewExercise, defaultEffortScale }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
+  const [classifying, setClassifying] = useState(false);
   const track = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
 
-  const resolveName = (rawName) => {
+  const resolveName = async (rawName) => {
     if (!rawName?.trim() || !findExerciseCandidates) return;
     const { exact, candidates } = findExerciseCandidates(rawName);
     if (exact) {
       if (exact.id !== ex.exerciseId) onUpdate({ ...ex, name: exact.name, exerciseId: exact.id, trackingType: exact.trackingType, exType: exact.exType, muscleGroup: exact.muscleGroup || inferMuscleGroup(exact.name) });
-    } else if (candidates.length > 0) {
-      setDupCheck({ rawName, candidates });
-    } else {
-      const id = slugify(rawName);
-      const name = titleCase(rawName);
-      const muscleGroup = ex.muscleGroup || inferMuscleGroup(name);
-      onUpdate({ ...ex, name, exerciseId: id, muscleGroup });
-      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, muscleGroup, createdAt: Date.now() });
+      return;
     }
+    if (candidates.length > 0) {
+      setDupCheck({ rawName, candidates });
+      return;
+    }
+    // No local match — ask the AI before assuming this is genuinely a new
+    // exercise (catches a differently-phrased name for one you already have).
+    if (classifyNewExercise) {
+      setClassifying(true);
+      const { muscleGroup, duplicateEntry } = await classifyNewExercise(rawName);
+      setClassifying(false);
+      if (duplicateEntry) { setDupCheck({ rawName, candidates: [duplicateEntry] }); return; }
+      const id = slugify(rawName), name = titleCase(rawName);
+      const resolvedGroup = muscleGroup || inferMuscleGroup(name);
+      onUpdate({ ...ex, name, exerciseId: id, muscleGroup: resolvedGroup });
+      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, muscleGroup: resolvedGroup, createdAt: Date.now() });
+      return;
+    }
+    const id = slugify(rawName);
+    const name = titleCase(rawName);
+    const muscleGroup = ex.muscleGroup || inferMuscleGroup(name);
+    onUpdate({ ...ex, name, exerciseId: id, muscleGroup });
+    if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, muscleGroup, createdAt: Date.now() });
   };
   return (
     <div ref={elRef} style={{ background:isDragging?"#eff6ff":"#fff", border:`1.5px solid ${isDragging?"#2563eb":"#e8e8e8"}`, borderRadius:10, marginBottom:7, overflow:"hidden", opacity:isDragging?0.85:1 }}>
@@ -35,7 +51,7 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
         <div style={{ padding:"0 12px 12px", borderTop:"1px solid #e8e8e8" }}>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:10 }}>
             <div style={{ gridColumn:"1/-1" }}>
-              <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>EXERCISE NAME</label>
+              <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>EXERCISE NAME {classifying && <span style={{ color:"#2563eb", fontWeight:600, textTransform:"none", letterSpacing:0 }}>· checking...</span>}</label>
               <input value={ex.name} onChange={e=>onUpdate({...ex, name:e.target.value})} onBlur={e=>resolveName(e.target.value)} style={inp} placeholder="Exercise name" />
             </div>
             <div>

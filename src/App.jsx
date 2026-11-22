@@ -3,8 +3,9 @@ import { auth } from "./firebase";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { newSplitId, slugify, titleCase } from "./constants";
 import { nameSimilarity } from "./utils";
+import { classifyExerciseRaw } from "./ai";
 import {
-  fbLoadSplitsForUser, fbSaveUserMeta,
+  fbLoadSplitsForUser, fbSaveUserMeta, fbLoadUserMeta,
   fbSaveSplit, fbDeleteSplit,
   fbPushSplitToUser, fbRegisterUsername,
   fbMigrateExerciseCatalog, fbLoadExerciseCatalog, fbSaveExercise, fbSetExerciseLog,
@@ -65,6 +66,34 @@ export default function App() {
 
   const refreshCatalog = (name) => fbLoadExerciseCatalog(name).then(catalog => { setExerciseCatalog(catalog); return catalog; });
 
+  // Asks the AI classification endpoint for a muscle group + possible
+  // duplicate match against the user's own catalog, resolving a returned
+  // duplicate name back to the actual catalog entry (by its deterministic
+  // slug id) so callers get the same shape findExerciseCandidates returns.
+  // Resilient: any failure just yields nulls, so callers fall back to the
+  // local keyword heuristic rather than blocking on the AI call.
+  const classifyNewExercise = async (name) => {
+    const result = await classifyExerciseRaw(name, exerciseCatalog.map(e => e.name));
+    if (!result) return { muscleGroup: null, duplicateEntry: null };
+    const duplicateEntry = result.duplicateOf ? (exerciseCatalog.find(e => e.id === slugify(result.duplicateOf)) || null) : null;
+    return { muscleGroup: result.muscleGroup || null, duplicateEntry };
+  };
+
+  // One-time pass over existing exercises that predate AI classification —
+  // only touches entries still missing a muscleGroup (never overwrites a
+  // manual correction), and runs in the background without blocking load.
+  // Gated by programs/{name}.exerciseGroupsAiClassifiedAt so it only ever runs once.
+  const backfillMuscleGroups = async (name, catalog) => {
+    const names = catalog.map(e => e.name);
+    for (const entry of catalog) {
+      if (entry.muscleGroup) continue;
+      const result = await classifyExerciseRaw(entry.name, names.filter(n => n !== entry.name));
+      if (!result?.muscleGroup) continue;
+      await fbSaveExercise(name, { id: entry.id, muscleGroup: result.muscleGroup });
+      setExerciseCatalog(prev => prev.map(e => e.id === entry.id ? { ...e, muscleGroup: result.muscleGroup } : e));
+    }
+  };
+
   const loadSplits = (name) => {
     setLoadingSplits(true);
     return fbLoadSplitsForUser(name).then(async ({ splits: s, activeSplitId: id, settings: st }) => {
@@ -73,8 +102,14 @@ export default function App() {
       setActiveSplitId(id);
       if (st) setSettings(st);
       if (overlaid.length > 0) await fbMigrateExerciseCatalog(name, overlaid);
-      await refreshCatalog(name);
+      const catalog = await refreshCatalog(name);
       setLoadingSplits(false);
+
+      const meta = await fbLoadUserMeta(name);
+      if (!meta.exerciseGroupsAiClassifiedAt && catalog.some(e => !e.muscleGroup)) {
+        fbSaveUserMeta(name, { exerciseGroupsAiClassifiedAt: Date.now() }); // mark first so a reload mid-backfill can't restart it
+        backfillMuscleGroups(name, catalog);
+      }
     });
   };
 
@@ -306,6 +341,7 @@ export default function App() {
         onBack={() => setScreen("dayselect")}
         findExerciseCandidates={findExerciseCandidates}
         onSaveExercise={handleSaveExercise}
+        classifyNewExercise={classifyNewExercise}
         defaultEffortScale={settings.effortScale}
       />
     </div>
@@ -332,6 +368,7 @@ export default function App() {
           onCorrectExerciseLog={handleCorrectExerciseLog}
           onRefreshCatalog={() => refreshCatalog(userName)}
           onAddExerciseToDay={handleAddExerciseToDay}
+          classifyNewExercise={classifyNewExercise}
         />
       )}
     </div>

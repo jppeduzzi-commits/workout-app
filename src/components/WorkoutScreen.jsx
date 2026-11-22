@@ -6,7 +6,7 @@ import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
 import AddModal from "./AddModal";
 
-export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise, onCorrectExerciseLog, onRefreshCatalog, onAddExerciseToDay }) {
+export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise, onCorrectExerciseLog, onRefreshCatalog, onAddExerciseToDay, classifyNewExercise }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -149,7 +149,10 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
     const recentIds = new Set(recent.map(r => r.id));
-    const others = (exerciseCatalog || [])
+    // "Other" is a catch-all for anything unclassified, not a real muscle
+    // group — grouping by it would surface unrelated exercises, so only
+    // offer the "other X exercises" browse list for a real group.
+    const others = group === "Other" ? [] : (exerciseCatalog || [])
       .filter(e => e.id !== exerciseId && !recentIds.has(e.id) && (e.muscleGroup || inferMuscleGroup(e.name)) === group)
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, 8)
@@ -327,6 +330,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
             effortScale={effortScale}
             findExerciseCandidates={findExerciseCandidates}
             onSaveExercise={onSaveExercise}
+            classifyNewExercise={classifyNewExercise}
             onViewAnalysis={() => setAnalysisEx(ex)}
             isAdHoc={extraExercises.some(e => e.id === ex.id)}
             onRemove={() => handleRemoveExtra(ex.id)}
@@ -378,6 +382,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
           onClose={() => setShowAddModal(false)}
           findExerciseCandidates={findExerciseCandidates}
           onSaveExercise={onSaveExercise}
+          classifyNewExercise={classifyNewExercise}
           defaultEffortScale={effortScale}
         />
       )}

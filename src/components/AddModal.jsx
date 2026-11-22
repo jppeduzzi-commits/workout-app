@@ -2,10 +2,11 @@ import { useState } from "react";
 import { TRACK, EX_TYPES, MUSCLE_GROUPS, inferMuscleGroup, inp, uid, titleCase, slugify } from "../constants";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
 
-export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSaveExercise, defaultEffortScale }) {
+export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSaveExercise, classifyNewExercise, defaultEffortScale }) {
   const [step, setStep] = useState(0);
   const [ex, setEx] = useState({ id:uid(), name:"", isSuperset:false, supersetNameA:"", supersetNameB:"", sets:3, hasDrop:false, trackingType:"reps", exType:"compound", muscleGroup:"Other", effortScale: defaultEffortScale || "rir", target:"", notes:"" });
   const [dupCheck, setDupCheck] = useState(null); // { rawName, candidates } while the modal is open
+  const [classifying, setClassifying] = useState(false);
   const track = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
   const canNext = [
     ex.isSuperset ? (ex.supersetNameA.trim().length > 0 && ex.supersetNameB.trim().length > 0) : ex.name.trim().length > 0,
@@ -113,17 +114,32 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
 
   const applyResolved = (fields) => { setEx(x => ({ ...x, ...fields })); setStep(s => s + 1); };
 
-  const handleNextFromNameStep = () => {
+  const handleNextFromNameStep = async () => {
     if (!canNext[0]) return;
     if (!findExerciseCandidates) { setStep(s => s + 1); return; }
     const { exact, candidates } = findExerciseCandidates(ex.name);
     if (exact) {
       applyResolved({ exerciseId: exact.id, name: exact.name, trackingType: exact.trackingType, exType: exact.exType, muscleGroup: exact.muscleGroup || inferMuscleGroup(exact.name) });
-    } else if (candidates.length > 0) {
-      setDupCheck({ rawName: ex.name, candidates });
-    } else {
-      applyResolved({ exerciseId: slugify(ex.name), name: titleCase(ex.name), muscleGroup: inferMuscleGroup(ex.name) });
+      return;
     }
+    if (candidates.length > 0) {
+      setDupCheck({ rawName: ex.name, candidates });
+      return;
+    }
+    // No local match — the fast string-similarity check can't catch a name
+    // for the same exercise that just happens to be phrased very differently
+    // (e.g. "DB Curl" vs "Dumbbell Bicep Curl"), so ask the AI before
+    // assuming this is genuinely new. Falls straight through to the local
+    // keyword guess if the call fails or isn't wired up.
+    if (classifyNewExercise) {
+      setClassifying(true);
+      const { muscleGroup, duplicateEntry } = await classifyNewExercise(ex.name);
+      setClassifying(false);
+      if (duplicateEntry) { setDupCheck({ rawName: ex.name, candidates: [duplicateEntry] }); return; }
+      applyResolved({ exerciseId: slugify(ex.name), name: titleCase(ex.name), muscleGroup: muscleGroup || inferMuscleGroup(ex.name) });
+      return;
+    }
+    applyResolved({ exerciseId: slugify(ex.name), name: titleCase(ex.name), muscleGroup: inferMuscleGroup(ex.name) });
   };
 
   const finalizeAndAdd = () => {
@@ -141,11 +157,11 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
         </div>
         {steps[step]}
         <div style={{ display:"flex", gap:10, marginTop:18 }}>
-          <button onClick={step===0?onClose:()=>setStep(s=>s-1)} style={{ padding:"11px 18px", background:"#f5f5f5", border:"1.5px solid #e8e8e8", borderRadius:10, color:"#888", fontFamily:"inherit", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+          <button onClick={step===0?onClose:()=>setStep(s=>s-1)} disabled={classifying} style={{ padding:"11px 18px", background:"#f5f5f5", border:"1.5px solid #e8e8e8", borderRadius:10, color:"#888", fontFamily:"inherit", fontSize:12, fontWeight:700, cursor:classifying?"wait":"pointer" }}>
             {step===0 ? "Cancel" : "← Back"}
           </button>
           {step < steps.length-1
-            ? <button onClick={() => step === 0 ? handleNextFromNameStep() : (canNext[step] && setStep(s=>s+1))} style={{ flex:1, padding:11, background:canNext[step]?"#0a0a0a":"#e8e8e8", color:"#fff", border:"none", borderRadius:10, fontFamily:"inherit", fontSize:13, fontWeight:800, cursor:"pointer" }}>Next →</button>
+            ? <button onClick={() => step === 0 ? handleNextFromNameStep() : (canNext[step] && setStep(s=>s+1))} disabled={classifying} style={{ flex:1, padding:11, background:canNext[step]?"#0a0a0a":"#e8e8e8", color:"#fff", border:"none", borderRadius:10, fontFamily:"inherit", fontSize:13, fontWeight:800, cursor:classifying?"wait":"pointer" }}>{classifying ? "Checking..." : "Next →"}</button>
             : <button onClick={finalizeAndAdd} style={{ flex:1, padding:11, background:"#16a34a", color:"#fff", border:"none", borderRadius:10, fontFamily:"inherit", fontSize:13, fontWeight:800, cursor:"pointer" }}>Add Exercise ✓</button>
           }
         </div>

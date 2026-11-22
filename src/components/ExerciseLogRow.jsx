@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TRACK, inp, roundTo, titleCase, slugify } from "../constants";
+import { TRACK, inp, roundTo, titleCase, slugify, inferMuscleGroup } from "../constants";
 import { parseRepRange, calcSet2Suggestion, effortToRIR, sumReps } from "../utils";
 import SetRow from "./SetRow";
 import Tag from "./Tag";
@@ -13,9 +13,10 @@ function makeRows(ex) {
   return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
-export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise, isAdHoc, onRemove, subSuggestions }) {
+export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise, classifyNewExercise, isAdHoc, onRemove, subSuggestions }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
+  const [classifyingSub, setClassifyingSub] = useState(false);
   const track    = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
   const sets     = entry?.sets || makeRows(ex);
   const isSub    = entry?.isSub || false;
@@ -65,18 +66,33 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
     onChange({ ...entry, sets, repCounter: turningOn, repGoal: prefill });
   };
 
-  const resolveSubName = (rawName) => {
+  const resolveSubName = async (rawName) => {
     if (!rawName?.trim() || !findExerciseCandidates) { onChange({ ...entry, sets, isSub:true, subName:rawName, subExerciseId:null }); return; }
     const { exact, candidates } = findExerciseCandidates(rawName);
     if (exact) {
       onChange({ ...entry, sets, isSub:true, subName:exact.name, subExerciseId:exact.id });
-    } else if (candidates.length > 0) {
-      setDupCheck({ rawName, candidates });
-    } else {
-      const id = slugify(rawName), name = titleCase(rawName);
-      onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
-      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
+      return;
     }
+    if (candidates.length > 0) {
+      setDupCheck({ rawName, candidates });
+      return;
+    }
+    // No local match — ask the AI before assuming this is a genuinely new
+    // exercise (catches a differently-phrased name for one already logged).
+    if (classifyNewExercise) {
+      setClassifyingSub(true);
+      const { muscleGroup, duplicateEntry } = await classifyNewExercise(rawName);
+      setClassifyingSub(false);
+      if (duplicateEntry) { setDupCheck({ rawName, candidates: [duplicateEntry] }); return; }
+      const id = slugify(rawName), name = titleCase(rawName);
+      const resolvedGroup = muscleGroup || inferMuscleGroup(name);
+      onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
+      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, muscleGroup: resolvedGroup, createdAt: Date.now() });
+      return;
+    }
+    const id = slugify(rawName), name = titleCase(rawName);
+    onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
+    if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, muscleGroup: inferMuscleGroup(name), createdAt: Date.now() });
   };
 
   // Picking a suggested exercise straight from the dropdown — already a known
@@ -260,7 +276,10 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
                     </select>
                   )}
                   {isTypingNewSub && (
-                    <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} onBlur={e=>resolveSubName(e.target.value)} placeholder="What did you do instead? e.g. DB Shoulder Press" autoFocus={hasSubOptions} style={{ ...inp, fontSize:12 }} />
+                    <>
+                      <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} onBlur={e=>resolveSubName(e.target.value)} placeholder="What did you do instead? e.g. DB Shoulder Press" autoFocus={hasSubOptions} disabled={classifyingSub} style={{ ...inp, fontSize:12 }} />
+                      {classifyingSub && <div style={{ fontSize:10, color:"#2563eb", marginTop:4, fontWeight:600 }}>Checking for a match...</div>}
+                    </>
                   )}
                 </div>
               )}

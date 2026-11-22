@@ -21,17 +21,20 @@ export const MUSCLE_GROUPS = ["Chest", "Back", "Shoulders", "Legs", "Arms", "Cor
 // skip picking one) — keyword match against the name. Always overridable;
 // this just saves a tap for the common case instead of defaulting to "Other".
 const MUSCLE_GROUP_KEYWORDS = [
-  { group: "Chest",     words: ["bench", "chest", "fly", "flye", "pec", "incline press", "decline press", "dip"] },
-  { group: "Back",      words: ["row", "pulldown", "pull-down", "pullup", "pull-up", "chinup", "chin-up", "lat ", "lat-", "deadlift", "rdl", "shrug", "pullover"] },
-  { group: "Shoulders", words: ["shoulder", "ohp", "overhead press", "military press", "lateral raise", "rear delt", "face pull", "upright row", "delt"] },
-  { group: "Legs",      words: ["squat", "leg", "lunge", "calf", "hamstring", "quad", "glute", "hip thrust", "step-up", "step up"] },
-  { group: "Arms",      words: ["curl", "tricep", "bicep", "skull", "pushdown", "push-down", "forearm"] },
-  { group: "Core",      words: ["ab", "core", "crunch", "plank", "sit-up", "situp", "woodchop", "oblique"] },
+  { group: "Chest",     words: ["bench", "chest", "fly", "flye", "flyes", "pec", "incline press", "decline press", "dip", "dips", "crossover", "pec deck"] },
+  { group: "Back",      words: ["row", "pulldown", "pull-down", "pullup", "pull-up", "chinup", "chin-up", "lat", "deadlift", "rdl", "shrug", "pullover"] },
+  { group: "Shoulders", words: ["shoulder", "ohp", "overhead press", "military press", "lateral raise", "rear delt", "face pull", "upright row", "delt", "arnold press"] },
+  { group: "Legs",      words: ["squat", "leg", "lunge", "calf", "calves", "hamstring", "quad", "glute", "hip thrust", "step-up", "step up", "adduction", "abduction"] },
+  { group: "Arms",      words: ["curl", "tricep", "bicep", "skull", "pushdown", "push-down", "forearm", "kickback"] },
+  { group: "Core",      words: ["abs", "ab wheel", "ab roller", "core", "crunch", "plank", "sit-up", "situp", "woodchop", "oblique", "hanging raise"] },
 ];
+// Matches whole words/phrases only — a raw substring check would let "ab"
+// fire inside "cable" or "table", mistagging an unrelated exercise.
+const wordBoundaryMatch = (haystack, phrase) => new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(haystack);
 export const inferMuscleGroup = name => {
   const n = (name || "").toLowerCase();
   for (const { group, words } of MUSCLE_GROUP_KEYWORDS) {
-    if (words.some(w => n.includes(w))) return group;
+    if (words.some(w => wordBoundaryMatch(n, w))) return group;
   }
   return "Other";
 };
