@@ -10,6 +10,7 @@ import {
   fbPushSplitToUser, fbRegisterUsername,
   fbMigrateExerciseCatalog, fbLoadExerciseCatalog, fbSaveExercise, fbSetExerciseLog, fbDeleteExercise,
   fbLoadSplitFresh, fbOffloadSplit,
+  fbLoadExerciseDatabase, fbUpsertExerciseDatabaseEntry,
 } from "./db";
 import OnboardScreen from "./components/OnboardScreen";
 import HomeScreen from "./components/HomeScreen";
@@ -32,11 +33,23 @@ export default function App() {
   const [loadingSplits, setLoadingSplits] = useState(false);
   const [activeDay, setActiveDay]         = useState(null);
   const [exerciseCatalog, setExerciseCatalog] = useState([]);
+  const [exerciseDatabase, setExerciseDatabase] = useState([]); // shared across every user, not per-account
   const [sharedNotice, setSharedNotice] = useState(null);
+
+  // Load the shared exercise database once at boot — it isn't scoped to
+  // whichever user is signed in, so it doesn't belong in the per-name load.
+  useEffect(() => { fbLoadExerciseDatabase().then(setExerciseDatabase); }, []);
 
   const activeSplit   = splits.find(s => s.id === activeSplitId) || splits[0] || null;
   const activeProgram = activeSplit?.program || {};
   const activeDays    = activeSplit?.days || [];
+
+  // Autocomplete source for exercise-name fields: your own catalog plus
+  // every name/alias anyone's ever had classified, shared across all users.
+  const exerciseNameOptions = [...new Set([
+    ...exerciseCatalog.map(e => e.name),
+    ...exerciseDatabase.flatMap(e => [e.name, ...(e.aliases || [])]),
+  ].filter(Boolean))];
 
   // Shared splits are a live link, not a one-time copy — on every load, pull the
   // owner's current content and overlay it. Recipient's own sessions/drafts
@@ -66,16 +79,53 @@ export default function App() {
 
   const refreshCatalog = (name) => fbLoadExerciseCatalog(name).then(catalog => { setExerciseCatalog(catalog); return catalog; });
 
-  // Asks the AI classification endpoint for a muscle group + possible
-  // duplicate match against the user's own catalog, resolving a returned
-  // duplicate name back to the actual catalog entry (by its deterministic
-  // slug id) so callers get the same shape findExerciseCandidates returns.
-  // Resilient: any failure just yields nulls, so callers fall back to the
-  // local keyword heuristic rather than blocking on the AI call.
+  // Looks a name up in the shared exercise database (by canonical name or
+  // any known alias, case-insensitive) — instant and free, no AI call.
+  const lookupSharedDb = (name) => {
+    const q = name.trim().toLowerCase();
+    return exerciseDatabase.find(e => e.name.toLowerCase() === q || (e.aliases || []).some(a => a.toLowerCase() === q)) || null;
+  };
+
+  // Records a name against a shared-database entry (creating it if this is
+  // the first time anyone's seen this exercise) — fire-and-forget to
+  // Firestore, with a matching optimistic local update so this session's
+  // own lookups/autocomplete see it immediately too.
+  const rememberInSharedDb = (slug, canonicalName, muscleGroup, alias) => {
+    fbUpsertExerciseDatabaseEntry(slug, canonicalName, muscleGroup, alias);
+    setExerciseDatabase(prev => {
+      const i = prev.findIndex(e => e.id === slug);
+      if (i === -1) return [...prev, { id: slug, name: canonicalName, muscleGroup, aliases: [alias] }];
+      const aliases = prev[i].aliases || [];
+      if (aliases.includes(alias)) return prev;
+      const next = [...prev]; next[i] = { ...next[i], aliases: [...aliases, alias] }; return next;
+    });
+  };
+
+  // Asks for a muscle group + possible duplicate match against the user's
+  // own catalog, resolving a returned duplicate name back to the actual
+  // catalog entry (by its deterministic slug id) so callers get the same
+  // shape findExerciseCandidates returns. Checks the shared exercise
+  // database first — if any user has ever seen this name before, it's
+  // instant and free; the AI only gets called for genuinely new names, and
+  // whatever it learns gets taught back to the shared database for next
+  // time. Resilient: any AI failure just yields nulls, so callers fall back
+  // to the local keyword heuristic rather than blocking on the call.
   const classifyNewExercise = async (name) => {
+    const dbMatch = lookupSharedDb(name);
+    if (dbMatch) {
+      const q = name.trim().toLowerCase();
+      const duplicateEntry = exerciseCatalog.find(e =>
+        e.name.toLowerCase() !== q && ((dbMatch.aliases || []).some(a => a.toLowerCase() === e.name.toLowerCase()) || e.name.toLowerCase() === dbMatch.name.toLowerCase())
+      ) || null;
+      return { muscleGroup: dbMatch.muscleGroup, duplicateEntry };
+    }
     const result = await classifyExerciseRaw(name, exerciseCatalog.map(e => e.name));
     if (!result) return { muscleGroup: null, duplicateEntry: null };
     const duplicateEntry = result.duplicateOf ? (exerciseCatalog.find(e => e.id === slugify(result.duplicateOf)) || null) : null;
+    if (result.muscleGroup) {
+      const canonicalName = result.duplicateOf || name;
+      rememberInSharedDb(slugify(canonicalName), canonicalName, result.muscleGroup, name);
+    }
     return { muscleGroup: result.muscleGroup || null, duplicateEntry };
   };
 
@@ -91,10 +141,17 @@ export default function App() {
     const names = catalog.map(e => e.name);
     for (const entry of catalog) {
       if (entry.muscleGroup) continue;
+      const dbMatch = lookupSharedDb(entry.name);
+      if (dbMatch) {
+        await fbSaveExercise(name, { id: entry.id, muscleGroup: dbMatch.muscleGroup });
+        setExerciseCatalog(prev => prev.map(e => e.id === entry.id ? { ...e, muscleGroup: dbMatch.muscleGroup } : e));
+        continue;
+      }
       const result = await classifyExerciseRaw(entry.name, names.filter(n => n !== entry.name));
       if (!result?.muscleGroup) continue;
       await fbSaveExercise(name, { id: entry.id, muscleGroup: result.muscleGroup });
       setExerciseCatalog(prev => prev.map(e => e.id === entry.id ? { ...e, muscleGroup: result.muscleGroup } : e));
+      rememberInSharedDb(entry.id, entry.name, result.muscleGroup, entry.name);
     }
   };
 
@@ -161,6 +218,11 @@ export default function App() {
     const primary = exerciseCatalog.find(e => e.id === primaryId);
     const duplicates = duplicateIds.map(id => exerciseCatalog.find(e => e.id === id)).filter(Boolean);
     if (!primary || duplicates.length === 0) return;
+
+    // A confirmed merge is a strong, human-verified signal — teach the
+    // shared database this permanently, same as a fresh AI classification
+    // would, so nobody else (or future-you) ever has to re-ask about it.
+    duplicates.forEach(d => rememberInSharedDb(primaryId, primary.name, primary.muscleGroup || d.muscleGroup, d.name));
 
     const mergedLog = [...(primary.log || []), ...duplicates.flatMap(d => d.log || [])];
     const mergedSubCounts = { ...(primary.subCounts || {}) };
@@ -410,6 +472,7 @@ export default function App() {
         findExerciseCandidates={findExerciseCandidates}
         onSaveExercise={handleSaveExercise}
         classifyNewExercise={classifyNewExercise}
+        exerciseNameOptions={exerciseNameOptions}
         defaultEffortScale={settings.effortScale}
       />
     </div>
@@ -437,6 +500,7 @@ export default function App() {
           onRefreshCatalog={() => refreshCatalog(userName)}
           onAddExerciseToDay={handleAddExerciseToDay}
           classifyNewExercise={classifyNewExercise}
+          exerciseNameOptions={exerciseNameOptions}
         />
       )}
     </div>

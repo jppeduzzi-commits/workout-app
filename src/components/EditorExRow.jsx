@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { TRACK, EX_TYPES, MUSCLE_GROUPS, inferMuscleGroup, inp, titleCase, slugify } from "../constants";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
+import ExerciseAutocomplete from "./ExerciseAutocomplete";
 
-export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef, isDragging, findExerciseCandidates, onSaveExercise, classifyNewExercise, defaultEffortScale }) {
+export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef, isDragging, findExerciseCandidates, onSaveExercise, classifyNewExercise, exerciseNameOptions, defaultEffortScale }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
   const [classifying, setClassifying] = useState(false);
@@ -52,7 +53,14 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:10 }}>
             <div style={{ gridColumn:"1/-1" }}>
               <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>EXERCISE NAME {classifying && <span style={{ color:"#2563eb", fontWeight:600, textTransform:"none", letterSpacing:0 }}>· checking...</span>}</label>
-              <input value={ex.name} onChange={e=>onUpdate({...ex, name:e.target.value})} onBlur={e=>resolveName(e.target.value)} style={inp} placeholder="Exercise name" />
+              <ExerciseAutocomplete
+                value={ex.name}
+                onChange={v => onUpdate({...ex, name:v})}
+                onSelect={v => { onUpdate({...ex, name:v}); resolveName(v); }}
+                onBlur={v => resolveName(v)}
+                options={exerciseNameOptions}
+                placeholder="Exercise name"
+              />
             </div>
             <div>
               <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>SETS</label>

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { TRACK, EX_TYPES, MUSCLE_GROUPS, inferMuscleGroup, inp, uid, titleCase, slugify } from "../constants";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
+import ExerciseAutocomplete from "./ExerciseAutocomplete";
 
-export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSaveExercise, classifyNewExercise, defaultEffortScale }) {
+export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSaveExercise, classifyNewExercise, exerciseNameOptions, defaultEffortScale }) {
   const [step, setStep] = useState(0);
   const [ex, setEx] = useState({ id:uid(), name:"", isSuperset:false, supersetNameA:"", supersetNameB:"", sets:3, hasDrop:false, trackingType:"reps", exType:"compound", muscleGroup:"Other", effortScale: defaultEffortScale || "rir", target:"", notes:"" });
   const [dupCheck, setDupCheck] = useState(null); // { rawName, candidates } while the modal is open
@@ -22,18 +23,20 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
     <div>
       <div style={{ fontSize:15, fontWeight:800, marginBottom:4, color:"#0a0a0a" }}>What's the exercise called?</div>
       <div style={{ fontSize:12, color:"#bbb", marginBottom:12 }}>Type the full name</div>
-      <input
-        value={ex.isSuperset ? ex.supersetNameA : ex.name}
-        onChange={e => {
-          const v = e.target.value;
-          ex.isSuperset
+      <div style={{ marginBottom:14 }}>
+        <ExerciseAutocomplete
+          value={ex.isSuperset ? ex.supersetNameA : ex.name}
+          onChange={v => ex.isSuperset
             ? setEx(x => ({ ...x, supersetNameA:v, name:`${v} / ${x.supersetNameB}` }))
-            : setEx(x => ({ ...x, name:v }));
-        }}
-        placeholder={ex.isSuperset ? "First exercise name" : "e.g. Cable Lateral Raise"}
-        autoFocus
-        style={{ ...inp, marginBottom:14 }}
-      />
+            : setEx(x => ({ ...x, name:v }))}
+          onSelect={v => ex.isSuperset
+            ? setEx(x => ({ ...x, supersetNameA:v, name:`${v} / ${x.supersetNameB}` }))
+            : setEx(x => ({ ...x, name:v }))}
+          options={exerciseNameOptions}
+          placeholder={ex.isSuperset ? "First exercise name" : "e.g. Cable Lateral Raise"}
+          autoFocus
+        />
+      </div>
       <label onClick={toggleSuperset} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginBottom: ex.isSuperset ? 14 : 0 }}>
         <div style={{ width:36, height:20, borderRadius:10, background:ex.isSuperset?"#0a0a0a":"#d1d5db", position:"relative", transition:"background .2s", flexShrink:0 }}>
           <div style={{ position:"absolute", top:2, left:ex.isSuperset?18:2, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left .2s" }} />
@@ -41,11 +44,12 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
         <span style={{ fontSize:13, color:"#555", fontWeight:600 }}>Superset — pair with another exercise</span>
       </label>
       {ex.isSuperset && (
-        <input
+        <ExerciseAutocomplete
           value={ex.supersetNameB}
-          onChange={e => setEx(x => ({ ...x, supersetNameB:e.target.value, name:`${x.supersetNameA} / ${e.target.value}` }))}
+          onChange={v => setEx(x => ({ ...x, supersetNameB:v, name:`${x.supersetNameA} / ${v}` }))}
+          onSelect={v => setEx(x => ({ ...x, supersetNameB:v, name:`${x.supersetNameA} / ${v}` }))}
+          options={exerciseNameOptions}
           placeholder="Second exercise name"
-          style={{ ...inp }}
         />
       )}
     </div>,

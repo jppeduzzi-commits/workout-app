@@ -5,6 +5,7 @@ import SetRow from "./SetRow";
 import Tag from "./Tag";
 import Toggle from "./Toggle";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
+import ExerciseAutocomplete from "./ExerciseAutocomplete";
 
 function makeRows(ex) {
   const base = ex.isSuperset
@@ -13,7 +14,7 @@ function makeRows(ex) {
   return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
-export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise, classifyNewExercise, isAdHoc, onRemove, subSuggestions }) {
+export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise, classifyNewExercise, exerciseNameOptions, isAdHoc, onRemove, subSuggestions }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
   const [classifyingSub, setClassifyingSub] = useState(false);
@@ -277,7 +278,17 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
                   )}
                   {isTypingNewSub && (
                     <>
-                      <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} onBlur={e=>resolveSubName(e.target.value)} placeholder="What did you do instead? e.g. DB Shoulder Press" autoFocus={hasSubOptions} disabled={classifyingSub} style={{ ...inp, fontSize:12 }} />
+                      <ExerciseAutocomplete
+                        value={subName}
+                        onChange={v => onChange({...entry, sets, isSub:true, subName:v})}
+                        onSelect={v => { onChange({...entry, sets, isSub:true, subName:v}); resolveSubName(v); }}
+                        onBlur={v => resolveSubName(v)}
+                        options={exerciseNameOptions}
+                        placeholder="What did you do instead? e.g. DB Shoulder Press"
+                        autoFocus={hasSubOptions}
+                        disabled={classifyingSub}
+                        style={{ fontSize:12 }}
+                      />
                       {classifyingSub && <div style={{ fontSize:10, color:"#2563eb", marginTop:4, fontWeight:600 }}>Checking for a match...</div>}
                     </>
                   )}

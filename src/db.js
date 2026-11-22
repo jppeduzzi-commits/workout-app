@@ -119,6 +119,30 @@ export async function fbDeleteExercise(name, exerciseId) {
   try { await deleteDoc(doc(db, "programs", can(name), "exercises", exerciseId)); } catch(e) { console.error(e); }
 }
 
+// ── Shared exercise database — NOT per-user; one collection everyone reads
+// and writes into. Powers instant/free name→muscleGroup lookups and
+// autocomplete suggestions once any user's AI classification has seen a
+// given name before. Never dictates what a user's own exercise is called —
+// it's purely a backstage alias table (aliases includes the canonical name
+// itself, so a plain membership check covers both).
+//   exerciseDatabase/{slug} → { id, name, muscleGroup, aliases: [] }
+// ──────────────────────────────────────────────────────────────────────────
+
+export async function fbLoadExerciseDatabase() {
+  try {
+    const snap = await getDocs(collection(db, "exerciseDatabase"));
+    return snap.docs.map(d => d.data());
+  } catch(e) { console.error("fbLoadExerciseDatabase:", e); return []; }
+}
+
+// `id` is the entry's canonical slug; `alias` is the specific name being
+// recorded against it (may equal the canonical name on first creation).
+export async function fbUpsertExerciseDatabaseEntry(id, name, muscleGroup, alias) {
+  try {
+    await setDoc(doc(db, "exerciseDatabase", id), { id, name, muscleGroup, aliases: arrayUnion(alias) }, { merge: true });
+  } catch(e) { console.error("fbUpsertExerciseDatabaseEntry:", e); }
+}
+
 export async function fbAppendExerciseLog(name, exerciseId, logEntry) {
   try { await setDoc(doc(db, "programs", can(name), "exercises", exerciseId), { log: arrayUnion(logEntry) }, { merge: true }); } catch(e) { console.error(e); }
 }

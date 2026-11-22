@@ -6,7 +6,7 @@ import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
 import AddModal from "./AddModal";
 
-export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise, onCorrectExerciseLog, onRefreshCatalog, onAddExerciseToDay, classifyNewExercise }) {
+export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise, onCorrectExerciseLog, onRefreshCatalog, onAddExerciseToDay, classifyNewExercise, exerciseNameOptions }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -328,6 +328,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
             findExerciseCandidates={findExerciseCandidates}
             onSaveExercise={onSaveExercise}
             classifyNewExercise={classifyNewExercise}
+            exerciseNameOptions={exerciseNameOptions}
             onViewAnalysis={() => setAnalysisEx(ex)}
             isAdHoc={extraExercises.some(e => e.id === ex.id)}
             onRemove={() => handleRemoveExtra(ex.id)}
@@ -380,6 +381,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
           findExerciseCandidates={findExerciseCandidates}
           onSaveExercise={onSaveExercise}
           classifyNewExercise={classifyNewExercise}
+          exerciseNameOptions={exerciseNameOptions}
           defaultEffortScale={effortScale}
         />
       )}
