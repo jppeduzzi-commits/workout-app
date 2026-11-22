@@ -5,7 +5,7 @@ import { newSplitId, slugify, titleCase } from "./constants";
 import { nameSimilarity } from "./utils";
 import { classifyExerciseRaw } from "./ai";
 import {
-  fbLoadSplitsForUser, fbSaveUserMeta, fbLoadUserMeta,
+  fbLoadSplitsForUser, fbSaveUserMeta,
   fbSaveSplit, fbDeleteSplit,
   fbPushSplitToUser, fbRegisterUsername,
   fbMigrateExerciseCatalog, fbLoadExerciseCatalog, fbSaveExercise, fbSetExerciseLog,
@@ -79,10 +79,14 @@ export default function App() {
     return { muscleGroup: result.muscleGroup || null, duplicateEntry };
   };
 
-  // One-time pass over existing exercises that predate AI classification —
+  // Backfill pass over existing exercises that predate AI classification —
   // only touches entries still missing a muscleGroup (never overwrites a
   // manual correction), and runs in the background without blocking load.
-  // Gated by programs/{name}.exerciseGroupsAiClassifiedAt so it only ever runs once.
+  // Deliberately NOT gated by a permanent "ran once" flag: a per-exercise
+  // failure (API down, no credit yet, etc.) should retry on the next load
+  // rather than being marked done forever after a single failed attempt —
+  // once an exercise actually gets a muscleGroup, the check above skips it,
+  // so this is naturally self-limiting without needing an account-level gate.
   const backfillMuscleGroups = async (name, catalog) => {
     const names = catalog.map(e => e.name);
     for (const entry of catalog) {
@@ -105,11 +109,7 @@ export default function App() {
       const catalog = await refreshCatalog(name);
       setLoadingSplits(false);
 
-      const meta = await fbLoadUserMeta(name);
-      if (!meta.exerciseGroupsAiClassifiedAt && catalog.some(e => !e.muscleGroup)) {
-        fbSaveUserMeta(name, { exerciseGroupsAiClassifiedAt: Date.now() }); // mark first so a reload mid-backfill can't restart it
-        backfillMuscleGroups(name, catalog);
-      }
+      if (catalog.some(e => !e.muscleGroup)) backfillMuscleGroups(name, catalog);
     });
   };
 
