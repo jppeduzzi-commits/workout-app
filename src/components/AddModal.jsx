@@ -1,15 +1,15 @@
 import { useState } from "react";
-import { TRACK, EX_TYPES, inp, uid, titleCase, slugify } from "../constants";
+import { TRACK, EX_TYPES, MUSCLE_GROUPS, inferMuscleGroup, inp, uid, titleCase, slugify } from "../constants";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
 
 export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSaveExercise, defaultEffortScale }) {
   const [step, setStep] = useState(0);
-  const [ex, setEx] = useState({ id:uid(), name:"", isSuperset:false, supersetNameA:"", supersetNameB:"", sets:3, hasDrop:false, trackingType:"reps", exType:"compound", effortScale: defaultEffortScale || "rir", target:"", notes:"" });
+  const [ex, setEx] = useState({ id:uid(), name:"", isSuperset:false, supersetNameA:"", supersetNameB:"", sets:3, hasDrop:false, trackingType:"reps", exType:"compound", muscleGroup:"Other", effortScale: defaultEffortScale || "rir", target:"", notes:"" });
   const [dupCheck, setDupCheck] = useState(null); // { rawName, candidates } while the modal is open
   const track = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
   const canNext = [
     ex.isSuperset ? (ex.supersetNameA.trim().length > 0 && ex.supersetNameB.trim().length > 0) : ex.name.trim().length > 0,
-    true, true, true, true,
+    true, true, true, true, true,
   ];
 
   const toggleSuperset = () => setEx(x => {
@@ -54,6 +54,15 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {EX_TYPES.map(t => (
           <button key={t.key} onClick={() => setEx(x=>({...x, exType:t.key}))} style={{ padding:"11px 14px", textAlign:"left", background:ex.exType===t.key?"#0a0a0a":"#fff", color:ex.exType===t.key?"#fff":"#0a0a0a", border:`1.5px solid ${ex.exType===t.key?"#0a0a0a":"#e8e8e8"}`, borderRadius:10, fontFamily:"inherit", cursor:"pointer", fontSize:13, fontWeight:700 }}>{t.label}</button>
+        ))}
+      </div>
+    </div>,
+    <div>
+      <div style={{ fontSize:15, fontWeight:800, marginBottom:4, color:"#0a0a0a" }}>Which muscle group?</div>
+      <div style={{ fontSize:12, color:"#bbb", marginBottom:12 }}>Used to suggest relevant substitutions later</div>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+        {MUSCLE_GROUPS.map(g => (
+          <button key={g} onClick={() => setEx(x=>({...x, muscleGroup:g}))} style={{ padding:"9px 14px", background:ex.muscleGroup===g?"#0a0a0a":"#fff", color:ex.muscleGroup===g?"#fff":"#0a0a0a", border:`1.5px solid ${ex.muscleGroup===g?"#0a0a0a":"#e8e8e8"}`, borderRadius:10, fontFamily:"inherit", cursor:"pointer", fontSize:13, fontWeight:700 }}>{g}</button>
         ))}
       </div>
     </div>,
@@ -109,17 +118,17 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
     if (!findExerciseCandidates) { setStep(s => s + 1); return; }
     const { exact, candidates } = findExerciseCandidates(ex.name);
     if (exact) {
-      applyResolved({ exerciseId: exact.id, name: exact.name, trackingType: exact.trackingType, exType: exact.exType });
+      applyResolved({ exerciseId: exact.id, name: exact.name, trackingType: exact.trackingType, exType: exact.exType, muscleGroup: exact.muscleGroup || inferMuscleGroup(exact.name) });
     } else if (candidates.length > 0) {
       setDupCheck({ rawName: ex.name, candidates });
     } else {
-      applyResolved({ exerciseId: slugify(ex.name), name: titleCase(ex.name) });
+      applyResolved({ exerciseId: slugify(ex.name), name: titleCase(ex.name), muscleGroup: inferMuscleGroup(ex.name) });
     }
   };
 
   const finalizeAndAdd = () => {
     if (onSaveExercise && ex.exerciseId) {
-      onSaveExercise({ id: ex.exerciseId, name: ex.name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
+      onSaveExercise({ id: ex.exerciseId, name: ex.name, trackingType: ex.trackingType, exType: ex.exType, muscleGroup: ex.muscleGroup, createdAt: Date.now() });
     }
     onAdd(ex);
   };
@@ -146,8 +155,8 @@ export default function AddModal({ onAdd, onClose, findExerciseCandidates, onSav
         <DuplicateExerciseModal
           rawName={dupCheck.rawName}
           candidates={dupCheck.candidates}
-          onMerge={candidate => { applyResolved({ exerciseId: candidate.id, name: candidate.name, trackingType: candidate.trackingType, exType: candidate.exType }); setDupCheck(null); }}
-          onKeepSeparate={() => { applyResolved({ exerciseId: slugify(dupCheck.rawName), name: titleCase(dupCheck.rawName) }); setDupCheck(null); }}
+          onMerge={candidate => { applyResolved({ exerciseId: candidate.id, name: candidate.name, trackingType: candidate.trackingType, exType: candidate.exType, muscleGroup: candidate.muscleGroup || inferMuscleGroup(candidate.name) }); setDupCheck(null); }}
+          onKeepSeparate={() => { applyResolved({ exerciseId: slugify(dupCheck.rawName), name: titleCase(dupCheck.rawName), muscleGroup: inferMuscleGroup(dupCheck.rawName) }); setDupCheck(null); }}
           onClose={() => setDupCheck(null)}
         />
       )}

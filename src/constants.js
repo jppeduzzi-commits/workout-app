@@ -15,6 +15,26 @@ export const EX_TYPES = [
   { key: "plyometric",  label: "Plyometric" },
   { key: "conditioning",label: "Cardio / Conditioning" },
 ];
+export const MUSCLE_GROUPS = ["Chest", "Back", "Shoulders", "Legs", "Arms", "Core", "Other"];
+
+// Best-effort default for exercises that predate the muscle group field (or
+// skip picking one) — keyword match against the name. Always overridable;
+// this just saves a tap for the common case instead of defaulting to "Other".
+const MUSCLE_GROUP_KEYWORDS = [
+  { group: "Chest",     words: ["bench", "chest", "fly", "flye", "pec", "incline press", "decline press", "dip"] },
+  { group: "Back",      words: ["row", "pulldown", "pull-down", "pullup", "pull-up", "chinup", "chin-up", "lat ", "lat-", "deadlift", "rdl", "shrug", "pullover"] },
+  { group: "Shoulders", words: ["shoulder", "ohp", "overhead press", "military press", "lateral raise", "rear delt", "face pull", "upright row", "delt"] },
+  { group: "Legs",      words: ["squat", "leg", "lunge", "calf", "hamstring", "quad", "glute", "hip thrust", "step-up", "step up"] },
+  { group: "Arms",      words: ["curl", "tricep", "bicep", "skull", "pushdown", "push-down", "forearm"] },
+  { group: "Core",      words: ["ab", "core", "crunch", "plank", "sit-up", "situp", "woodchop", "oblique"] },
+];
+export const inferMuscleGroup = name => {
+  const n = (name || "").toLowerCase();
+  for (const { group, words } of MUSCLE_GROUP_KEYWORDS) {
+    if (words.some(w => n.includes(w))) return group;
+  }
+  return "Other";
+};
 export const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 export const TODAY = () => { const d = new Date(); return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };
 export const TODAYFMT = () => { const d = new Date(); return `${DAYS[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`; };

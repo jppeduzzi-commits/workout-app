@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { TODAY, TODAYFMT, fmtDate, parseDateStr, AUTO_LOG_HOURS, copy } from "../constants";
+import { TODAY, TODAYFMT, fmtDate, parseDateStr, AUTO_LOG_HOURS, copy, inferMuscleGroup } from "../constants";
 import { sumReps } from "../utils";
-import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft, fbAppendExerciseLog } from "../db";
+import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft, fbAppendExerciseLog, fbRecordSubUsage } from "../db";
 import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
 import AddModal from "./AddModal";
@@ -136,6 +136,27 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
     return { sets: latest.sets, note: latest.note, isSub: latest.isSub, subName: latest.subName, repCounter: latest.repCounter, repGoal: latest.repGoal, repTotal: latest.repTotal, _viaSplit: viaSplit };
   };
 
+  // Substitution suggestions for one exercise: your own most-used subs for
+  // it specifically (from subCounts, recorded whenever a sub gets logged),
+  // then other exercises you already have in the same muscle group.
+  const getSubSuggestions = (exerciseId) => {
+    if (!exerciseId) return { group: null, recent: [], others: [] };
+    const entry = catalogById[exerciseId];
+    const group = entry?.muscleGroup || inferMuscleGroup(entry?.name || "");
+    const recent = Object.entries(entry?.subCounts || {})
+      .filter(([id, count]) => id !== exerciseId && count > 0 && catalogById[id])
+      .map(([id, count]) => ({ id, count, name: catalogById[id].name }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    const recentIds = new Set(recent.map(r => r.id));
+    const others = (exerciseCatalog || [])
+      .filter(e => e.id !== exerciseId && !recentIds.has(e.id) && (e.muscleGroup || inferMuscleGroup(e.name)) === group)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 8)
+      .map(e => ({ id: e.id, name: e.name }));
+    return { group, recent, others };
+  };
+
   const handleSave = async () => {
     setConfirmLog(false);
     setSaving(true);
@@ -156,6 +177,11 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
       if (!targetId) return;
       const logEntry = { date, splitId, dayKey: activeDay, exerciseIndex: index, sets: entry.sets, note: entry.note || null, isSub: entry.isSub || false, subName: entry.subName || null, repCounter: entry.repCounter || false, repGoal: entry.repCounter ? (entry.repGoal || null) : null, repTotal: entry.repCounter ? sumReps(entry.sets) : null };
       fbAppendExerciseLog(userName, targetId, logEntry);
+      // Tally this as a real-world "frequent sub" for the original exercise,
+      // so next time it's suggested in the substitution dropdown.
+      if (entry.isSub && entry.subExerciseId && ex.exerciseId && entry.subExerciseId !== ex.exerciseId) {
+        fbRecordSubUsage(userName, ex.exerciseId, entry.subExerciseId);
+      }
     });
 
     setSessions(next); setCurrent({}); setExtraExercises([]);
@@ -207,6 +233,11 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
       }
       if (newTargetId) {
         (additionsByExId[newTargetId] = additionsByExId[newTargetId] || []).push({ date: oldSession.date, splitId, dayKey: activeDay, exerciseIndex: index, sets: newEntry.sets, note: newEntry.note || null, isSub: newEntry.isSub || false, subName: newEntry.subName || null, repCounter: newEntry.repCounter || false, repGoal: newEntry.repCounter ? (newEntry.repGoal || null) : null, repTotal: newEntry.repCounter ? sumReps(newEntry.sets) : null });
+      }
+      // Only tally when the sub actually changed from what was there before —
+      // re-saving the same edit repeatedly shouldn't keep inflating the count.
+      if (newEntry?.isSub && newEntry.subExerciseId && ex.exerciseId && newEntry.subExerciseId !== ex.exerciseId && newEntry.subExerciseId !== oldEntry?.subExerciseId) {
+        fbRecordSubUsage(userName, ex.exerciseId, newEntry.subExerciseId);
       }
     });
 
@@ -290,6 +321,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
             entry={current[ex.id] || null}
             prevEntry={getPrev(ex.exerciseId)}
             subPrevEntry={getPrev(current[ex.id]?.subExerciseId)}
+            subSuggestions={getSubSuggestions(ex.exerciseId)}
             onChange={val => handleChange(ex.id, val)}
             sessions={sessions}
             effortScale={effortScale}

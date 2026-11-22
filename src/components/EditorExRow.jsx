@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TRACK, EX_TYPES, inp, titleCase, slugify } from "../constants";
+import { TRACK, EX_TYPES, MUSCLE_GROUPS, inferMuscleGroup, inp, titleCase, slugify } from "../constants";
 import DuplicateExerciseModal from "./DuplicateExerciseModal";
 
 export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef, isDragging, findExerciseCandidates, onSaveExercise, defaultEffortScale }) {
@@ -11,14 +11,15 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
     if (!rawName?.trim() || !findExerciseCandidates) return;
     const { exact, candidates } = findExerciseCandidates(rawName);
     if (exact) {
-      if (exact.id !== ex.exerciseId) onUpdate({ ...ex, name: exact.name, exerciseId: exact.id, trackingType: exact.trackingType, exType: exact.exType });
+      if (exact.id !== ex.exerciseId) onUpdate({ ...ex, name: exact.name, exerciseId: exact.id, trackingType: exact.trackingType, exType: exact.exType, muscleGroup: exact.muscleGroup || inferMuscleGroup(exact.name) });
     } else if (candidates.length > 0) {
       setDupCheck({ rawName, candidates });
     } else {
       const id = slugify(rawName);
       const name = titleCase(rawName);
-      onUpdate({ ...ex, name, exerciseId: id });
-      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
+      const muscleGroup = ex.muscleGroup || inferMuscleGroup(name);
+      onUpdate({ ...ex, name, exerciseId: id, muscleGroup });
+      if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, muscleGroup, createdAt: Date.now() });
     }
   };
   return (
@@ -54,6 +55,12 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
               </select>
             </div>
             <div>
+              <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>MUSCLE GROUP</label>
+              <select value={ex.muscleGroup || inferMuscleGroup(ex.name)} onChange={e=>onUpdate({...ex, muscleGroup:e.target.value})} style={{ ...inp, cursor:"pointer" }}>
+                {MUSCLE_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+            <div>
               <label style={{ fontSize:10, color:"#bbb", fontWeight:700, display:"block", marginBottom:4 }}>TARGET {track.label.toUpperCase()}</label>
               <input value={ex.target} onChange={e=>onUpdate({...ex, target:e.target.value})} style={inp} placeholder="e.g. 8–12" />
             </div>
@@ -81,11 +88,12 @@ export default function EditorExRow({ ex, onUpdate, onDelete, onGripStart, elRef
         <DuplicateExerciseModal
           rawName={dupCheck.rawName}
           candidates={dupCheck.candidates}
-          onMerge={candidate => { onUpdate({ ...ex, name: candidate.name, exerciseId: candidate.id, trackingType: candidate.trackingType, exType: candidate.exType }); setDupCheck(null); }}
+          onMerge={candidate => { onUpdate({ ...ex, name: candidate.name, exerciseId: candidate.id, trackingType: candidate.trackingType, exType: candidate.exType, muscleGroup: candidate.muscleGroup || inferMuscleGroup(candidate.name) }); setDupCheck(null); }}
           onKeepSeparate={() => {
             const id = slugify(dupCheck.rawName), name = titleCase(dupCheck.rawName);
-            onUpdate({ ...ex, name, exerciseId: id });
-            if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
+            const muscleGroup = ex.muscleGroup || inferMuscleGroup(name);
+            onUpdate({ ...ex, name, exerciseId: id, muscleGroup });
+            if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, muscleGroup, createdAt: Date.now() });
             setDupCheck(null);
           }}
           onClose={() => setDupCheck(null)}

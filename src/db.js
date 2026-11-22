@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { doc, getDoc, getDocFromServer, setDoc, getDocs, deleteDoc, collection, query, where, documentId, arrayUnion, writeBatch } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, getDocs, deleteDoc, collection, query, where, documentId, arrayUnion, increment, writeBatch } from "firebase/firestore";
 import { copy, slugify, titleCase, newSplitId } from "./constants";
 
 // Primary data key is the user's canonical NAME, not Firebase UID.
@@ -116,6 +116,15 @@ export async function fbAppendExerciseLog(name, exerciseId, logEntry) {
 // where arrayUnion's append-only semantics can't remove/replace an entry.
 export async function fbSetExerciseLog(name, exerciseId, log) {
   try { await setDoc(doc(db, "programs", can(name), "exercises", exerciseId), { log }, { merge: true }); } catch(e) { console.error(e); }
+}
+
+// Tallies how often a given substitute has been logged in place of an
+// original exercise — stored on the ORIGINAL's catalog entry as
+// subCounts.{substituteId}, so the substitution dropdown can surface
+// someone's own frequent subs for that specific exercise. A soft frequency
+// signal, not a strict ledger — fine to drift slightly on edits.
+export async function fbRecordSubUsage(name, originalExerciseId, substituteExerciseId) {
+  try { await setDoc(doc(db, "programs", can(name), "exercises", originalExerciseId), { subCounts: { [substituteExerciseId]: increment(1) } }, { merge: true }); } catch(e) { console.error(e); }
 }
 
 // Batched lookup — Firestore "in" queries are capped at 30 ids per query.

@@ -13,13 +13,14 @@ function makeRows(ex) {
   return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
-export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise, isAdHoc, onRemove }) {
+export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise, isAdHoc, onRemove, subSuggestions }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
   const track    = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
   const sets     = entry?.sets || makeRows(ex);
   const isSub    = entry?.isSub || false;
   const subName  = entry?.subName || "";
+  const subExerciseIdSel = entry?.subExerciseId || null;
   const logged   = ex.isSuperset
     ? sets.some(s => s.weight || s.perf || s.weight2 || s.perf2)
     : sets.some(s => s.bw || s.weight || s.perf);
@@ -68,6 +69,10 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
       if (onSaveExercise) onSaveExercise({ id, name, trackingType: ex.trackingType, exType: ex.exType, createdAt: Date.now() });
     }
   };
+
+  // Picking a suggested exercise straight from the dropdown — already a known
+  // catalog entry, so no name resolution/dup-check needed.
+  const selectSub = (id, name) => onChange({ ...entry, sets, isSub:true, subName:name, subExerciseId:id });
 
   const pairWithReps = !ex.isSuperset && !!track.pairWithReps;
 
@@ -222,7 +227,35 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
             <div style={{ marginBottom:12 }}>
               <Toggle on={isSub} onToggle={() => onChange({...entry, sets, isSub:!isSub, subName:"", subExerciseId:null})} label="Mark as substitution" />
               {isSub && (
-                <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} onBlur={e=>resolveSubName(e.target.value)} placeholder="What did you do instead? e.g. DB Shoulder Press" style={{ ...inp, marginTop:8, fontSize:12 }} />
+                <div style={{ marginTop:8 }}>
+                  {subSuggestions?.recent?.length > 0 && (
+                    <div style={{ marginBottom:8 }}>
+                      <div style={{ fontSize:10, color:"#bbb", fontWeight:700, letterSpacing:"0.04em", marginBottom:5 }}>YOUR FREQUENT SUBS</div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                        {subSuggestions.recent.map(r => (
+                          <button key={r.id} onClick={() => selectSub(r.id, r.name)}
+                            style={{ padding:"6px 10px", background: subExerciseIdSel===r.id ? "#0a0a0a" : "#fff", color: subExerciseIdSel===r.id ? "#fff" : "#0a0a0a", border:`1.5px solid ${subExerciseIdSel===r.id ? "#0a0a0a" : "#e8e8e8"}`, borderRadius:8, fontFamily:"inherit", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                            {r.name} <span style={{ opacity:0.55, fontWeight:600 }}>· {r.count}x</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {subSuggestions?.others?.length > 0 && (
+                    <div style={{ marginBottom:8 }}>
+                      <div style={{ fontSize:10, color:"#bbb", fontWeight:700, letterSpacing:"0.04em", marginBottom:5 }}>OTHER {(subSuggestions.group||"").toUpperCase()} EXERCISES</div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                        {subSuggestions.others.map(o => (
+                          <button key={o.id} onClick={() => selectSub(o.id, o.name)}
+                            style={{ padding:"6px 10px", background: subExerciseIdSel===o.id ? "#0a0a0a" : "#fff", color: subExerciseIdSel===o.id ? "#fff" : "#0a0a0a", border:`1.5px solid ${subExerciseIdSel===o.id ? "#0a0a0a" : "#e8e8e8"}`, borderRadius:8, fontFamily:"inherit", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                            {o.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} onBlur={e=>resolveSubName(e.target.value)} placeholder="Or type a new one... e.g. DB Shoulder Press" style={{ ...inp, fontSize:12 }} />
+                </div>
               )}
             </div>
           )}
