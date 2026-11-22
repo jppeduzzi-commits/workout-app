@@ -5,7 +5,7 @@ import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft,
 import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
 
-export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise, onCorrectExerciseLog }) {
+export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise, onCorrectExerciseLog, onRefreshCatalog }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
@@ -25,6 +25,13 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
   useEffect(() => {
     if (!userName || !splitId) return;
     setLoading(true); setCurrent({}); setEditingSession(false);
+    // Catalog-backed "last time" data (prevEntry below) is otherwise only
+    // fetched once when the app first boots, so a device that keeps the app
+    // alive in the background for days (common on Android) can show stale
+    // or missing "LAST" numbers even though session history itself — which
+    // is always fetched fresh — is fine. Refetch it every time a day is
+    // opened so it's never more stale than the session list.
+    onRefreshCatalog?.();
     Promise.all([
       fbLoadSessions(userName, splitId, activeDay),
       fbLoadDraft(userName, splitId, activeDay),

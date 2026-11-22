@@ -63,6 +63,8 @@ export default function App() {
     return next;
   };
 
+  const refreshCatalog = (name) => fbLoadExerciseCatalog(name).then(catalog => { setExerciseCatalog(catalog); return catalog; });
+
   const loadSplits = (name) => {
     setLoadingSplits(true);
     return fbLoadSplitsForUser(name).then(async ({ splits: s, activeSplitId: id, settings: st }) => {
@@ -71,8 +73,7 @@ export default function App() {
       setActiveSplitId(id);
       if (st) setSettings(st);
       if (overlaid.length > 0) await fbMigrateExerciseCatalog(name, overlaid);
-      const catalog = await fbLoadExerciseCatalog(name);
-      setExerciseCatalog(catalog);
+      await refreshCatalog(name);
       setLoadingSplits(false);
     });
   };
@@ -316,6 +317,7 @@ export default function App() {
           findExerciseCandidates={findExerciseCandidates}
           onSaveExercise={handleSaveExercise}
           onCorrectExerciseLog={handleCorrectExerciseLog}
+          onRefreshCatalog={() => refreshCatalog(userName)}
         />
       )}
     </div>
