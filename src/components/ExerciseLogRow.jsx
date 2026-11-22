@@ -120,11 +120,22 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
       : {bw:false, weight:"", perf:"", rir:null, reps:""};
     onChange({...entry, sets:[...sets, newRow]});
   };
+  // Tacks on an extra set flagged as a drop set, decided in the moment rather
+  // than planned on the exercise ahead of time (that's ex.hasDrop). Prefills
+  // ~50% of the last set's weight as a starting point, same convention as the
+  // static drop set's "50% weight, go to failure" guidance below.
+  const addDropSet = () => {
+    const last = sets[sets.length - 1];
+    const lastWeight = last && !last.bw ? parseFloat(last.weight) : NaN;
+    const prefillWeight = !isNaN(lastWeight) && lastWeight > 0 ? String(roundTo(lastWeight * 0.5, 2.5)) : "";
+    const newRow = {bw:false, weight:prefillWeight, perf:"", rir:null, reps:"", isDropSet:true};
+    onChange({...entry, sets:[...sets, newRow]});
+  };
   const delSet = i => onChange({...entry, sets:sets.filter((_,idx) => idx!==i)});
 
   const getSuggestion = i => {
     if (track.key !== "reps") return null;
-    const isDrop = ex.hasDrop && i === ex.sets;
+    const isDrop = (ex.hasDrop && i === ex.sets) || !!sets[i]?.isDropSet;
     if (isDrop || i >= ex.sets - 1) return null;
     const s = sets[i];
     if (!s || !s.weight || !s.perf || s.bw) return null;
@@ -271,7 +282,7 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
                 ))}
               </div>
               {enrichedSets.map((s, i) => {
-                const isDrop   = ex.hasDrop && i === ex.sets;
+                const isDrop   = (ex.hasDrop && i === ex.sets) || !!s.isDropSet;
                 const suggestion = !isDrop ? getSuggestion(i) : null;
                 return (
                   <SetRow key={i} s={s} i={i} isDrop={isDrop} track={track} readOnly={readOnly}
@@ -285,16 +296,23 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
             </>
           )}
 
-          {ex.hasDrop && (
+          {(ex.hasDrop || sets.some(s => s.isDropSet)) && (
             <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:7, padding:"6px 10px", fontSize:11, color:"#92400e", marginBottom:8 }}>
               ↓ Drop set = 50% weight, go to failure
             </div>
           )}
 
           {!readOnly && (
-            <button onClick={addSet} style={{ width:"100%", padding:8, background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:8, color:"#bbb", fontSize:12, fontFamily:"inherit", fontWeight:600, cursor:"pointer", marginBottom:8 }}>
-              + Add set
-            </button>
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              <button onClick={addSet} style={{ flex:1, padding:8, background:"transparent", border:"1.5px dashed #e8e8e8", borderRadius:8, color:"#bbb", fontSize:12, fontFamily:"inherit", fontWeight:600, cursor:"pointer" }}>
+                + Add set
+              </button>
+              {!ex.isSuperset && (
+                <button onClick={addDropSet} style={{ flex:1, padding:8, background:"transparent", border:"1.5px dashed #fde68a", borderRadius:8, color:"#b45309", fontSize:12, fontFamily:"inherit", fontWeight:600, cursor:"pointer" }}>
+                  ↓ Add drop set
+                </button>
+              )}
+            </div>
           )}
 
           {showAnalysisBtn && (
