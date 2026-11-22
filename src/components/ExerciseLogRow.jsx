@@ -21,6 +21,15 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
   const isSub    = entry?.isSub || false;
   const subName  = entry?.subName || "";
   const subExerciseIdSel = entry?.subExerciseId || null;
+  // Combined dropdown of frequent subs + other same-muscle-group exercises.
+  // Defaults to "type a new one" (free text shown) until something's either
+  // picked from the list or already set from a prior sub that matches it.
+  const subOptionsList  = [...(subSuggestions?.recent || []), ...(subSuggestions?.others || [])];
+  const hasSubOptions   = subOptionsList.length > 0;
+  const subOptionsById  = Object.fromEntries(subOptionsList.map(o => [o.id, o]));
+  const matchedSubOption = subExerciseIdSel ? subOptionsById[subExerciseIdSel] : null;
+  const subDropdownValue = matchedSubOption ? subExerciseIdSel : "__new__";
+  const isTypingNewSub   = !hasSubOptions || !matchedSubOption;
   const logged   = ex.isSuperset
     ? sets.some(s => s.weight || s.perf || s.weight2 || s.perf2)
     : sets.some(s => s.bw || s.weight || s.perf);
@@ -228,33 +237,31 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
               <Toggle on={isSub} onToggle={() => onChange({...entry, sets, isSub:!isSub, subName:"", subExerciseId:null})} label="Mark as substitution" />
               {isSub && (
                 <div style={{ marginTop:8 }}>
-                  {subSuggestions?.recent?.length > 0 && (
-                    <div style={{ marginBottom:8 }}>
-                      <div style={{ fontSize:10, color:"#bbb", fontWeight:700, letterSpacing:"0.04em", marginBottom:5 }}>YOUR FREQUENT SUBS</div>
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                        {subSuggestions.recent.map(r => (
-                          <button key={r.id} onClick={() => selectSub(r.id, r.name)}
-                            style={{ padding:"6px 10px", background: subExerciseIdSel===r.id ? "#0a0a0a" : "#fff", color: subExerciseIdSel===r.id ? "#fff" : "#0a0a0a", border:`1.5px solid ${subExerciseIdSel===r.id ? "#0a0a0a" : "#e8e8e8"}`, borderRadius:8, fontFamily:"inherit", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-                            {r.name} <span style={{ opacity:0.55, fontWeight:600 }}>· {r.count}x</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                  {hasSubOptions && (
+                    <select
+                      value={subDropdownValue}
+                      onChange={e => e.target.value === "__new__"
+                        ? onChange({ ...entry, sets, isSub:true, subName:"", subExerciseId:null })
+                        : selectSub(e.target.value, subOptionsById[e.target.value]?.name)}
+                      style={{ ...inp, cursor:"pointer", marginBottom: isTypingNewSub ? 8 : 0 }}
+                    >
+                      <option value="" disabled>Choose a substitute...</option>
+                      {subSuggestions.recent.length > 0 && (
+                        <optgroup label="Your frequent subs">
+                          {subSuggestions.recent.map(r => <option key={r.id} value={r.id}>{r.name} · {r.count}x</option>)}
+                        </optgroup>
+                      )}
+                      {subSuggestions.others.length > 0 && (
+                        <optgroup label={`Other ${subSuggestions.group || ""} exercises`}>
+                          {subSuggestions.others.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </optgroup>
+                      )}
+                      <option value="__new__">+ Type a new one...</option>
+                    </select>
                   )}
-                  {subSuggestions?.others?.length > 0 && (
-                    <div style={{ marginBottom:8 }}>
-                      <div style={{ fontSize:10, color:"#bbb", fontWeight:700, letterSpacing:"0.04em", marginBottom:5 }}>OTHER {(subSuggestions.group||"").toUpperCase()} EXERCISES</div>
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                        {subSuggestions.others.map(o => (
-                          <button key={o.id} onClick={() => selectSub(o.id, o.name)}
-                            style={{ padding:"6px 10px", background: subExerciseIdSel===o.id ? "#0a0a0a" : "#fff", color: subExerciseIdSel===o.id ? "#fff" : "#0a0a0a", border:`1.5px solid ${subExerciseIdSel===o.id ? "#0a0a0a" : "#e8e8e8"}`, borderRadius:8, fontFamily:"inherit", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-                            {o.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                  {isTypingNewSub && (
+                    <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} onBlur={e=>resolveSubName(e.target.value)} placeholder="What did you do instead? e.g. DB Shoulder Press" autoFocus={hasSubOptions} style={{ ...inp, fontSize:12 }} />
                   )}
-                  <input value={subName} onChange={e=>onChange({...entry, sets, isSub:true, subName:e.target.value})} onBlur={e=>resolveSubName(e.target.value)} placeholder="Or type a new one... e.g. DB Shoulder Press" style={{ ...inp, fontSize:12 }} />
                 </div>
               )}
             </div>

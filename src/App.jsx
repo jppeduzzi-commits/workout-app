@@ -100,7 +100,10 @@ export default function App() {
     setExerciseCatalog(prev => {
       const i = prev.findIndex(e => e.id === exercise.id);
       if (i === -1) return [...prev, exercise];
-      const next = [...prev]; next[i] = exercise; return next;
+      // Merge, don't replace — callers only ever pass the few fields they're
+      // editing (name/type/muscle group/etc.), and a full replace would wipe
+      // the entry's log and subCounts out of local state until next reload.
+      const next = [...prev]; next[i] = { ...prev[i], ...exercise }; return next;
     });
   };
 
