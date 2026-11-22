@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@ai-sdk/gateway": "^4.0.152",
+    "@ai-sdk/anthropic": "^4.0.107",
     "ai": "^7.0.179",
     "firebase": "^12.12.0",
     "react": "^18.2.0",

@@ -3,12 +3,13 @@
 // catalog under a different name (e.g. "DB Curl" vs "Dumbbell Bicep Curl") —
 // the thing a fixed keyword list or plain string-similarity check can't do.
 //
-// Auth: uses Vercel AI Gateway via OIDC (no API key needed once the project
-// is linked and AI Gateway is enabled — see `vercel env pull`). Never called
-// directly from the browser with a key; this function is the only thing
-// that talks to the gateway.
+// Calls Anthropic directly with an API key (set as the ANTHROPIC_API_KEY env
+// var in the Vercel project — Settings → Environment Variables). No Vercel
+// AI Gateway, no Firebase — just this function and a key, never exposed to
+// the client.
 
 const { generateObject } = require("ai");
+const { createAnthropic } = require("@ai-sdk/anthropic");
 const { z } = require("zod");
 
 const MUSCLE_GROUPS = ["Chest", "Back", "Shoulders", "Legs", "Arms", "Core", "Other"];
@@ -23,6 +24,11 @@ const schema = z.object({
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ error: "POST only" }); return; }
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    res.status(503).json({ error: "ANTHROPIC_API_KEY not configured" });
+    return;
+  }
+
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = {}; } }
   const name = (body?.name || "").trim();
@@ -31,11 +37,11 @@ module.exports = async function handler(req, res) {
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
 
   try {
+    const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const { object } = await generateObject({
-      model: "anthropic/claude-haiku-4.5",
+      model: anthropic("claude-haiku-4-5-20251001"),
       schema,
       prompt: `Exercise name: "${name}"\n\nExisting exercise names already in this person's log (for duplicate detection only):\n${existingNames.length ? existingNames.map(n => `- ${n}`).join("\n") : "(none yet)"}`,
-      providerOptions: { gateway: { tags: ["feature:exercise-classify"] } },
     });
     res.status(200).json(object);
   } catch (e) {
