@@ -13,7 +13,7 @@ function makeRows(ex) {
   return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
-export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise }) {
+export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise, isAdHoc, onRemove }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
   const track    = TRACK.find(t => t.key === ex.trackingType) || TRACK[0];
@@ -154,7 +154,11 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
           </div>
           <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>
             {ex.isSuperset ? `${ex.sets} sets · Superset` : `${ex.sets} sets${ex.hasDrop?" + drop":""} · ${ex.target} ${track.label.toLowerCase()}`}
+            {isAdHoc && <span style={{ marginLeft:6, color:"#f59e0b", fontWeight:700 }}>· Added today</span>}
           </div>
+          {isAdHoc && onRemove && !readOnly && (
+            <button onClick={e => { e.stopPropagation(); onRemove(); }} style={{ display:"block", fontSize:10, color:"#dc2626", background:"none", border:"none", padding:0, marginTop:4, fontWeight:700, cursor:"pointer" }}>✕ Remove</button>
+          )}
           {prevIsSub && prevSubName && !open && (
             <div style={{ fontSize:10, color:"#f59e0b", marginTop:3, fontWeight:600 }}>↻ Last session: {prevSubName}</div>
           )}

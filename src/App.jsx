@@ -178,6 +178,16 @@ export default function App() {
     setSplits(prev => prev.map(s => s.id === updatedSplit.id ? updatedSplit : s));
   };
 
+  // Permanently adds an exercise (built via AddModal mid-session) onto a day's
+  // program going forward — same effect as adding it in the split editor,
+  // just triggered from the workout screen instead.
+  const handleAddExerciseToDay = async (dayKey, slot) => {
+    if (!activeSplit) return;
+    const day = activeSplit.program[dayKey] || { exercises: [] };
+    const updated = { ...activeSplit, program: { ...activeSplit.program, [dayKey]: { ...day, exercises: [...(day.exercises || []), slot] } } };
+    await handleSaveSplit(updated);
+  };
+
   const handleReorderDays = (newDays) => {
     if (!activeSplit) return;
     const updated = { ...activeSplit, days: newDays };
@@ -318,6 +328,7 @@ export default function App() {
           onSaveExercise={handleSaveExercise}
           onCorrectExerciseLog={handleCorrectExerciseLog}
           onRefreshCatalog={() => refreshCatalog(userName)}
+          onAddExerciseToDay={handleAddExerciseToDay}
         />
       )}
     </div>

@@ -4,11 +4,16 @@ import { sumReps } from "../utils";
 import { fbLoadSessions, fbSaveSessions, fbLoadDraft, fbSaveDraft, fbClearDraft, fbAppendExerciseLog } from "../db";
 import ExerciseLogRow from "./ExerciseLogRow";
 import AnalysisScreen from "./AnalysisScreen";
+import AddModal from "./AddModal";
 
-export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise, onCorrectExerciseLog, onRefreshCatalog }) {
+export default function WorkoutScreen({ userName, splitId, program, days, onBack, initDay, effortScale, autoLog, exerciseCatalog, splits, findExerciseCandidates, onSaveExercise, onCorrectExerciseLog, onRefreshCatalog, onAddExerciseToDay }) {
   const [activeDay, setActiveDay] = useState(initDay);
   const [sessions, setSessions] = useState([]);
   const [current, setCurrent] = useState({});
+  // Exercises added mid-session via "+ Add exercise" that are logged for
+  // today only — never written into the split's program. Restored from the
+  // session/draft they were saved under, cleared once a fresh day is opened.
+  const [extraExercises, setExtraExercises] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -17,14 +22,19 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
   const [analysisEx, setAnalysisEx] = useState(null);
   const [confirmLog, setConfirmLog] = useState(false);
   const [editingSession, setEditingSession] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [pendingNewExercise, setPendingNewExercise] = useState(null);
   const autoSaveTimer = useRef(null);
   const programDays = days?.length ? days : Object.keys(program);
   const curDay      = program[activeDay];
   const lastSession = sessions[sessions.length - 1] || null;
+  // Program-defined exercises plus anything added just for this session —
+  // the single source of truth for rendering and for logging/correcting history.
+  const allExercises = [...(curDay?.exercises || []), ...extraExercises];
 
   useEffect(() => {
     if (!userName || !splitId) return;
-    setLoading(true); setCurrent({}); setEditingSession(false);
+    setLoading(true); setCurrent({}); setExtraExercises([]); setEditingSession(false);
     // Catalog-backed "last time" data (prevEntry below) is otherwise only
     // fetched once when the app first boots, so a device that keeps the app
     // alive in the background for days (common on Android) can show stale
@@ -37,21 +47,26 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
       fbLoadDraft(userName, splitId, activeDay),
     ]).then(([s, { draft, savedAt }]) => {
       setSessions(s);
-      const hasMeaningfulData = Object.values(draft).some(e => e?.sets?.some(s => s.weight || s.reps || s.laps));
+      // Drafts were historically just a flat entries map; `.entries` is only
+      // present on drafts saved by the mid-session "add exercise" feature.
+      const draftEntries = draft?.entries || draft || {};
+      const draftExtras  = draft?.extraExercises || [];
+      const hasMeaningfulData = Object.values(draftEntries).some(e => e?.sets?.some(s => s.weight || s.reps || s.laps));
       const thresholdMs = AUTO_LOG_HOURS * 3600000;
       const shouldAutoLog = autoLog !== false && savedAt && hasMeaningfulData && (Date.now() - savedAt) > thresholdMs;
       if (shouldAutoLog) {
         const d = new Date(savedAt);
         const dateStr = `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
-        const nextSessions = [...s, { date: dateStr, entries: draft }];
+        const nextSessions = [...s, { date: dateStr, entries: draftEntries, extraExercises: draftExtras }];
         fbSaveSessions(userName, splitId, activeDay, nextSessions);
         fbClearDraft(userName, splitId, activeDay);
         setSessions(nextSessions);
         const hoursAgo = Math.round((Date.now() - savedAt) / 3600000);
         setAutoLoggedMsg(`✓ Auto-logged ${activeDay} from ${hoursAgo}h ago`);
         setTimeout(() => setAutoLoggedMsg(""), 5000);
-      } else {
-        if (hasMeaningfulData) setCurrent(draft);
+      } else if (hasMeaningfulData) {
+        setCurrent(draftEntries);
+        setExtraExercises(draftExtras);
       }
       setLoading(false);
     });
@@ -65,7 +80,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
       if (!editingSession) {
         clearTimeout(autoSaveTimer.current);
         autoSaveTimer.current = setTimeout(async () => {
-          await fbSaveDraft(userName, splitId, activeDay, next);
+          await fbSaveDraft(userName, splitId, activeDay, { entries: next, extraExercises });
           setAutoSaved(true);
           setTimeout(() => setAutoSaved(false), 1500);
         }, 800);
@@ -73,7 +88,36 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
       return next;
     });
     setSaved(false);
-  }, [userName, splitId, activeDay, editingSession]);
+  }, [userName, splitId, activeDay, editingSession, extraExercises]);
+
+  // "+ Add exercise": AddModal builds the slot, then a scope choice decides
+  // whether it's a one-off for today's log or should stick to the program.
+  const handleAddExerciseBuilt = (ex) => {
+    setShowAddModal(false);
+    setPendingNewExercise(ex);
+  };
+
+  const confirmAddToday = () => {
+    if (!pendingNewExercise) return;
+    const next = [...extraExercises, pendingNewExercise];
+    setExtraExercises(next);
+    if (!editingSession) fbSaveDraft(userName, splitId, activeDay, { entries: current, extraExercises: next });
+    setPendingNewExercise(null);
+  };
+
+  const confirmAddPermanent = async () => {
+    if (!pendingNewExercise) return;
+    await onAddExerciseToDay?.(activeDay, pendingNewExercise);
+    setPendingNewExercise(null);
+  };
+
+  const handleRemoveExtra = (exId) => {
+    const next = extraExercises.filter(e => e.id !== exId);
+    setExtraExercises(next);
+    const nextCurrent = { ...current }; delete nextCurrent[exId];
+    setCurrent(nextCurrent);
+    if (!editingSession) fbSaveDraft(userName, splitId, activeDay, { entries: nextCurrent, extraExercises: next });
+  };
 
   const catalogById = useMemo(() => {
     const m = {};
@@ -96,14 +140,14 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
     setConfirmLog(false);
     setSaving(true);
     const date = TODAY();
-    const next = [...sessions, { date, entries: current }];
+    const next = [...sessions, { date, entries: current, extraExercises }];
     await fbSaveSessions(userName, splitId, activeDay, next);
     await fbClearDraft(userName, splitId, activeDay);
 
     // Mirror each logged exercise into the global catalog log, keyed by
     // resolved identity — substitutions redirect to their own exerciseId.
-    const exs = curDay?.exercises || [];
-    exs.forEach((ex, index) => {
+    // Includes anything added mid-session, not just the program's own list.
+    allExercises.forEach((ex, index) => {
       const entry = current[ex.id];
       if (!entry) return;
       const hasData = entry.sets?.some(s => s.weight || s.perf || s.weight2 || s.perf2 || s.bw || s.bw2);
@@ -114,7 +158,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
       fbAppendExerciseLog(userName, targetId, logEntry);
     });
 
-    setSessions(next); setCurrent({});
+    setSessions(next); setCurrent({}); setExtraExercises([]);
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -125,11 +169,13 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
   const handleEditLastSession = () => {
     if (!lastSession) return;
     setCurrent(copy(lastSession.entries || {}));
+    setExtraExercises(copy(lastSession.extraExercises || []));
     setEditingSession(true);
   };
 
   const handleCancelEdit = () => {
     setCurrent({});
+    setExtraExercises([]);
     setEditingSession(false);
   };
 
@@ -138,13 +184,15 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
     setSaving(true);
     const lastIdx = sessions.length - 1;
     const oldSession = sessions[lastIdx];
-    const nextSessions = sessions.map((sess, idx) => idx === lastIdx ? { ...sess, entries: current } : sess);
+    const nextSessions = sessions.map((sess, idx) => idx === lastIdx ? { ...sess, entries: current, extraExercises } : sess);
     await fbSaveSessions(userName, splitId, activeDay, nextSessions);
 
     // Correct each affected exercise's global log in place — the old entry
     // for this exact session gets removed and the new one added, rather than
     // just appending (which would leave the old, now-wrong numbers behind).
-    const exs = curDay?.exercises || [];
+    // oldSession's own extraExercises cover anything that was added when it
+    // was originally logged, even if since removed from the current edit.
+    const exs = [...allExercises, ...(oldSession.extraExercises || [])].filter((ex, i, arr) => arr.findIndex(e => e.id === ex.id) === i);
     const removalsByExId = {};
     const additionsByExId = {};
     exs.forEach((ex, index) => {
@@ -237,7 +285,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
 
         {loading ? (
           <div style={{ textAlign:"center", color:"#bbb", padding:40, fontSize:13 }}>Loading...</div>
-        ) : curDay.exercises.map(ex => (
+        ) : <>{allExercises.map(ex => (
           <ExerciseLogRow key={ex.id} ex={ex}
             entry={current[ex.id] || null}
             prevEntry={getPrev(ex.exerciseId)}
@@ -248,10 +296,17 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
             findExerciseCandidates={findExerciseCandidates}
             onSaveExercise={onSaveExercise}
             onViewAnalysis={() => setAnalysisEx(ex)}
+            isAdHoc={extraExercises.some(e => e.id === ex.id)}
+            onRemove={() => handleRemoveExtra(ex.id)}
           />
         ))}
 
-        {curDay.cardio && (
+        <button onClick={() => setShowAddModal(true)} style={{ width:"100%", padding:12, background:"#fff", border:"1.5px dashed #d1d5db", borderRadius:12, color:"#888", fontFamily:"inherit", fontSize:12, fontWeight:700, cursor:"pointer", marginBottom:8 }}>
+          + Add exercise
+        </button>
+        </>}
+
+        {!loading && curDay.cardio && (
           <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:10, padding:"10px 14px", fontSize:13, color:"#15803d", fontWeight:600, marginBottom:8 }}>
             🏃 Cardio — {curDay.cardio}
           </div>
@@ -279,6 +334,36 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
               {editingSession ? "Save changes" : "Log session"}
             </button>
             <button onClick={() => setConfirmLog(false)} style={{ width:"100%", padding:13, background:"none", border:"1.5px solid #e8e8e8", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:700, color:"#888", cursor:"pointer" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <AddModal
+          onAdd={handleAddExerciseBuilt}
+          onClose={() => setShowAddModal(false)}
+          findExerciseCandidates={findExerciseCandidates}
+          onSaveExercise={onSaveExercise}
+          defaultEffortScale={effortScale}
+        />
+      )}
+
+      {pendingNewExercise && (
+        <div onClick={() => setPendingNewExercise(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:200, display:"flex", alignItems:"flex-end" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", background:"#fff", borderRadius:"18px 18px 0 0", padding:"24px 20px 40px", fontFamily:"Barlow,sans-serif" }}>
+            <div style={{ fontSize:17, fontWeight:900, color:"#0a0a0a", marginBottom:6 }}>Add "{pendingNewExercise.name}"</div>
+            <div style={{ fontSize:12, color:"#888", marginBottom:20, lineHeight:1.5 }}>
+              Just log it for today, or add it to <strong>{curDay?.label}</strong> permanently so it shows up every time going forward?
+            </div>
+            <button onClick={confirmAddToday} style={{ width:"100%", padding:13, background:"#0a0a0a", color:"#fff", border:"none", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:10 }}>
+              Just for today
+            </button>
+            <button onClick={confirmAddPermanent} style={{ width:"100%", padding:13, background:"#eff6ff", border:"1.5px solid #bfdbfe", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:800, color:"#1d4ed8", cursor:"pointer", marginBottom:10 }}>
+              Add to {curDay?.label} permanently
+            </button>
+            <button onClick={() => setPendingNewExercise(null)} style={{ width:"100%", padding:13, background:"none", border:"1.5px solid #e8e8e8", borderRadius:12, fontFamily:"inherit", fontSize:14, fontWeight:700, color:"#888", cursor:"pointer" }}>
               Cancel
             </button>
           </div>
