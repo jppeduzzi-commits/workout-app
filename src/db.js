@@ -111,6 +111,14 @@ export async function fbSaveExercise(name, exercise) {
   try { await setDoc(doc(db, "programs", can(name), "exercises", exercise.id), exercise, { merge: true }); } catch(e) { console.error(e); }
 }
 
+// Used only when merging a duplicate exercise entry into another — the
+// duplicate's log/subCounts have already been folded into the surviving
+// entry, and every program slot that pointed at it has been repointed,
+// before this is ever called.
+export async function fbDeleteExercise(name, exerciseId) {
+  try { await deleteDoc(doc(db, "programs", can(name), "exercises", exerciseId)); } catch(e) { console.error(e); }
+}
+
 export async function fbAppendExerciseLog(name, exerciseId, logEntry) {
   try { await setDoc(doc(db, "programs", can(name), "exercises", exerciseId), { log: arrayUnion(logEntry) }, { merge: true }); } catch(e) { console.error(e); }
 }

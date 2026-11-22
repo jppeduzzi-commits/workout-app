@@ -3,12 +3,12 @@ import { auth } from "./firebase";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { newSplitId, slugify, titleCase } from "./constants";
 import { nameSimilarity } from "./utils";
-import { classifyExerciseRaw } from "./ai";
+import { classifyExerciseRaw, findDuplicateExerciseGroups } from "./ai";
 import {
   fbLoadSplitsForUser, fbSaveUserMeta,
   fbSaveSplit, fbDeleteSplit,
   fbPushSplitToUser, fbRegisterUsername,
-  fbMigrateExerciseCatalog, fbLoadExerciseCatalog, fbSaveExercise, fbSetExerciseLog,
+  fbMigrateExerciseCatalog, fbLoadExerciseCatalog, fbSaveExercise, fbSetExerciseLog, fbDeleteExercise,
   fbLoadSplitFresh, fbOffloadSplit,
 } from "./db";
 import OnboardScreen from "./components/OnboardScreen";
@@ -148,6 +148,71 @@ export default function App() {
   const handleCorrectExerciseLog = async (exerciseId, log) => {
     await fbSetExerciseLog(userName, exerciseId, log);
     setExerciseCatalog(prev => prev.map(e => e.id === exerciseId ? { ...e, log } : e));
+  };
+
+  // Folds one or more duplicate exercise entries (same movement, typed
+  // differently — "Inverted Row" / "Inverted Rows") into a single surviving
+  // entry: combines their logged history and sub-usage counts, repoints
+  // every program slot and every other exercise's subCounts that referenced
+  // a duplicate, then deletes the duplicates. The split/catalog edits land
+  // together so a failure partway through never leaves slots pointing at an
+  // exerciseId that's about to stop existing.
+  const handleMergeExercises = async (primaryId, duplicateIds) => {
+    const primary = exerciseCatalog.find(e => e.id === primaryId);
+    const duplicates = duplicateIds.map(id => exerciseCatalog.find(e => e.id === id)).filter(Boolean);
+    if (!primary || duplicates.length === 0) return;
+
+    const mergedLog = [...(primary.log || []), ...duplicates.flatMap(d => d.log || [])];
+    const mergedSubCounts = { ...(primary.subCounts || {}) };
+    duplicates.forEach(d => Object.entries(d.subCounts || {}).forEach(([id, count]) => {
+      mergedSubCounts[id] = (mergedSubCounts[id] || 0) + count;
+    }));
+    delete mergedSubCounts[primaryId]; // in case a duplicate had somehow recorded the primary as its own sub
+
+    // Any other exercise that recorded a duplicate as a frequent sub needs
+    // that count redirected to the primary instead.
+    const subRedirects = [];
+    exerciseCatalog.forEach(e => {
+      if (e.id === primaryId || duplicateIds.includes(e.id)) return;
+      const sc = e.subCounts || {};
+      if (!duplicateIds.some(id => sc[id])) return;
+      const next = { ...sc };
+      duplicateIds.forEach(id => { if (next[id]) { next[primaryId] = (next[primaryId] || 0) + next[id]; delete next[id]; } });
+      subRedirects.push({ id: e.id, subCounts: next });
+    });
+
+    // Repoint every program slot across every split that pointed at a
+    // duplicate, so future logging goes to the merged entry.
+    const updatedSplits = splits.map(split => {
+      let changed = false;
+      const program = { ...split.program };
+      Object.keys(program).forEach(dayKey => {
+        const exs = (program[dayKey]?.exercises || []).map(slot => {
+          if (!duplicateIds.includes(slot.exerciseId)) return slot;
+          changed = true;
+          return { ...slot, exerciseId: primaryId };
+        });
+        program[dayKey] = { ...program[dayKey], exercises: exs };
+      });
+      return changed ? { ...split, program } : split;
+    });
+
+    await fbSaveExercise(userName, { id: primaryId, log: mergedLog, subCounts: mergedSubCounts });
+    for (const r of subRedirects) await fbSaveExercise(userName, { id: r.id, subCounts: r.subCounts });
+    for (const split of updatedSplits) {
+      const original = splits.find(s => s.id === split.id);
+      if (split !== original) await fbSaveSplit(userName, split);
+    }
+    for (const id of duplicateIds) await fbDeleteExercise(userName, id);
+
+    setSplits(updatedSplits);
+    setExerciseCatalog(prev => prev
+      .filter(e => !duplicateIds.includes(e.id))
+      .map(e => {
+        if (e.id === primaryId) return { ...e, log: mergedLog, subCounts: mergedSubCounts };
+        const redirect = subRedirects.find(r => r.id === e.id);
+        return redirect ? { ...e, subCounts: redirect.subCounts } : e;
+      }));
   };
 
   // Load splits + settings whenever we know the user's name
@@ -300,6 +365,9 @@ export default function App() {
         onBack={() => setScreen("home")}
         onChangeName={handleChangeName}
         onSignOut={handleSignOut}
+        exerciseCatalog={exerciseCatalog}
+        onFindDuplicateExercises={() => findDuplicateExerciseGroups(exerciseCatalog.map(e => e.name))}
+        onMergeExercises={handleMergeExercises}
       />
     </div>
   );

@@ -17,3 +17,24 @@ export async function classifyExerciseRaw(name, existingNames) {
     return null;
   }
 }
+
+// One-shot scan over the whole catalog's names for existing duplicates typed
+// differently (e.g. "Inverted Row" / "Inverted Rows") — a cleanup pass, not
+// the per-name check used when adding/substituting. Returns [] on any
+// failure so a broken/unreachable function just shows "no duplicates found"
+// rather than erroring the whole settings screen.
+export async function findDuplicateExerciseGroups(names) {
+  try {
+    const res = await fetch("/api/find-duplicate-exercises", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names: names || [] }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data?.groups) ? data.groups : [];
+  } catch (e) {
+    console.error("findDuplicateExerciseGroups:", e);
+    return [];
+  }
+}
