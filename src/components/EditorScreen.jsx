@@ -83,7 +83,7 @@ export default function EditorScreen({ split, onSave, onBack, findExerciseCandid
   };
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100dvh", fontFamily:"Barlow,sans-serif" }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"var(--app-h, 100dvh)", fontFamily:"Barlow,sans-serif" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px", borderBottom:"1px solid #e8e8e8", background:"#fff", flexShrink:0 }}>
         <button onClick={onBack} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>←</button>
         <div>
@@ -92,7 +92,7 @@ export default function EditorScreen({ split, onSave, onBack, findExerciseCandid
         </div>
       </div>
 
-      <div style={{ flex:1, overflowY:"auto", padding:"14px", paddingBottom:100 }}>
+      <div data-typing-scroll style={{ flex:1, minHeight:0, overflowY:"auto", padding:"14px", paddingBottom:100 }}>
 
         {/* Split name */}
         <div style={{ marginBottom:16 }}>

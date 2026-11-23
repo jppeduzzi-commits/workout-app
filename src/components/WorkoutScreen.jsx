@@ -260,7 +260,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
   if (analysisEx) return <AnalysisScreen ex={analysisEx} log={catalogById[analysisEx.exerciseId]?.log || []} onBack={() => setAnalysisEx(null)} />;
 
   return (
-    <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", height:"100dvh" }}>
+    <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", height:"var(--app-h, 100dvh)" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", borderBottom:"1px solid #e8e8e8", background:"#fff", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>←</button>
@@ -268,6 +268,8 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
             <span style={{ fontSize:15, fontWeight:800, color:"#0a0a0a" }}>{userName}</span>
           </div>
         </div>
+        {/* In the header, not the list, so it never shifts the field being typed in */}
+        <div style={{ fontSize:10, color:"#16a34a", visibility:autoSaved?"visible":"hidden" }}>● Draft saved</div>
       </div>
 
       <div style={{ display:"flex", gap:6, padding:"9px 14px", overflowX:"auto", borderBottom:"1px solid #e8e8e8", background:"#fff", flexShrink:0 }}>
@@ -276,7 +278,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
         ))}
       </div>
 
-      <div style={{ flex:1, overflowY:"auto", padding:"14px 14px 16px", background:"#f5f5f5" }}>
+      <div data-typing-scroll style={{ flex:1, minHeight:0, overflowY:"auto", padding:"14px 14px 16px", background:"#f5f5f5" }}>
         {!curDay ? (
           <div style={{ textAlign:"center", padding:"60px 20px", color:"#bbb" }}>
             <div style={{ fontSize:13 }}>Loading workout...</div>
@@ -299,7 +301,6 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
             {lastSession && <div style={{ fontSize:11, color:"#bbb" }}>Last: <span style={{ color:"#888", fontWeight:600 }}>{fmtDate(lastSession.date)}</span></div>}
             <div style={{ fontSize:11, color:"#bbb" }}>Today: <span style={{ color:"#888", fontWeight:600 }}>{TODAYFMT()}</span></div>
           </div>
-          {autoSaved && <div style={{ fontSize:10, color:"#16a34a", marginTop:4 }}>● Draft saved</div>}
           {autoLoggedMsg && <div style={{ fontSize:11, color:"#16a34a", fontWeight:700, marginTop:6, padding:"6px 10px", background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8 }}>{autoLoggedMsg}</div>}
           {lastSession && !editingSession && !loading && (
             <button onClick={handleEditLastSession} style={{ display:"block", background:"none", border:"none", color:"#2563eb", fontSize:11, fontWeight:700, cursor:"pointer", padding:0, marginTop:8 }}>

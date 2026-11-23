@@ -35,7 +35,7 @@ export default function PerformanceScreen({ userName, splitId, program, exercise
   const calcResult = calc1RM(calcWeight, calcReps, 1);
 
   return (
-    <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", height:"100dvh", background:"#f5f5f5" }}>
+    <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", height:"var(--app-h, 100dvh)", background:"#f5f5f5" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 16px", borderBottom:"1px solid #e8e8e8", background:"#fff", flexShrink:0 }}>
         <button onClick={onBack} style={{ background:"none", border:"none", color:"#bbb", fontSize:22, cursor:"pointer", padding:0 }}>←</button>
         <div>
@@ -50,7 +50,7 @@ export default function PerformanceScreen({ userName, splitId, program, exercise
         ))}
       </div>
 
-      <div style={{ flex:1, overflowY:"auto", padding:16 }}>
+      <div data-typing-scroll style={{ flex:1, minHeight:0, overflowY:"auto", padding:16 }}>
         {tab === "prs" && (
           prs.length === 0 ? (
             <div style={{ textAlign:"center", padding:"60px 20px", color:"#bbb" }}>
