@@ -55,7 +55,7 @@ export default function AnalysisScreen({ ex, log, onBack }) {
     });
   }
 
-  const nextSession = (bestSet && !pairWithReps) ? calcNextSession(bestSet.weight, bestSet.reps, ex.target, ex.exType) : null;
+  const nextSession = calcNextSession(sortedLog[sortedLog.length - 1]?.sets, ex);
   const recent = sortedLog.slice(-5).reverse();
 
   return (
@@ -161,8 +161,8 @@ export default function AnalysisScreen({ ex, log, onBack }) {
             {nextSession && (
               <div style={{ background:"#eff6ff", border:"1.5px solid #bfdbfe", borderRadius:14, padding:16, marginBottom:14 }}>
                 <div style={{ fontSize:10, color:"#1d4ed8", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:8 }}>Next session target</div>
-                <div style={{ fontSize:24, fontWeight:900, color:"#1d4ed8", marginBottom:4 }}>{nextSession.weight}lbs × {nextSession.reps} reps</div>
-                <div style={{ fontSize:11, color:"#3b82f6" }}>{nextSession.note}</div>
+                <div style={{ fontSize:24, fontWeight:900, color:"#1d4ed8", marginBottom:4 }}>{nextSession.weight}lbs{nextSession.reps ? ` × ~${nextSession.reps} reps` : ""}</div>
+                <div style={{ fontSize:11, color:"#3b82f6" }}>Last session hit the top of your range ({nextSession.fromWeight}lbs × {nextSession.fromReps}) — ready to add weight{nextSession.belowRange && `. Expect to start below ${nextSession.range.min} reps`}</div>
               </div>
             )}
 

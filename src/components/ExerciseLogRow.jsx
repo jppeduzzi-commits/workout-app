@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { TRACK, inp, roundTo, titleCase, slugify, inferMuscleGroup } from "../constants";
-import { parseRepRange, calcSet2Suggestion, effortToRIR, sumReps } from "../utils";
+import { parseRepRange, calcSet2Suggestion, calcNextSession, estimateSet, effortToRIR, sumReps } from "../utils";
 import SetRow from "./SetRow";
 import Tag from "./Tag";
 import Toggle from "./Toggle";
@@ -14,7 +14,7 @@ function makeRows(ex) {
   return Array.from({ length: ex.hasDrop ? ex.sets + 1 : ex.sets }, () => ({ ...base }));
 }
 
-export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise, classifyNewExercise, exerciseNameOptions, isAdHoc, onRemove, subSuggestions }) {
+export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onChange, readOnly, sessions, onViewAnalysis, effortScale: defaultEffortScale, findExerciseCandidates, onSaveExercise, classifyNewExercise, exerciseNameOptions, isAdHoc, onRemove, subSuggestions, hideEstimates }) {
   const [open, setOpen] = useState(false);
   const [dupCheck, setDupCheck] = useState(null);
   const [classifyingSub, setClassifyingSub] = useState(false);
@@ -116,12 +116,12 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
 
   const repRange = parseRepRange(ex.target);
   const toppedRange = !ex.isSuperset && !isSub && track.key === "reps" && repRange && sets.some(s => !s.bw && s.perf && parseFloat(s.perf) >= repRange.max);
-  const bestSetWeight = (() => {
-    if (!toppedRange || !repRange) return null;
-    const ws = sets.filter(s => !s.bw && s.weight && s.perf && parseFloat(s.perf) >= repRange.max);
-    return ws.length ? Math.max(...ws.map(s => parseFloat(s.weight))) : null;
-  })();
-  const suggestedNextWeight = bestSetWeight ? roundTo(bestSetWeight * 1.05, 2.5) : null;
+  // What today's sets earn for next time, and what last time's earned for today.
+  // Hidden while editing a past session: "last time" would be that same session.
+  const nextTarget = toppedRange ? calcNextSession(sets, ex) : null;
+  const showEstimates = !readOnly && !hideEstimates && track.key === "reps" && !prevIsSub;
+  const todayTarget = showEstimates ? calcNextSession(prevSets, ex) : null;
+  const repsText = t => t.reps ? ` × ~${t.reps} reps` : "";
 
   const enrichedSets = sets.map((s, i) => {
     if (!prevSets[i]) return { ...s, _prev:"—", _prevA:"—", _prevB:"—", _prevIsSub:false, _prevRir:null };
@@ -210,9 +210,12 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
           {!repCounterOn && effectivePrev?.repCounter && effectivePrev?.repTotal != null && !open && (
             <div style={{ fontSize:10, color:"#2563eb", marginTop:3, fontWeight:600 }}>🔢 Last: {effectivePrev.repTotal} total reps</div>
           )}
+          {todayTarget && !toppedRange && !open && (
+            <div style={{ fontSize:10, color:"#2563eb", marginTop:3, fontWeight:600 }}>↑ Target: {todayTarget.weight}lbs{repsText(todayTarget)}</div>
+          )}
           {toppedRange && !open && (
             <div style={{ fontSize:10, color:"#2563eb", marginTop:3, fontWeight:600 }}>
-              Hit {repRange.max} reps — go heavier next session{suggestedNextWeight ? ` (~${suggestedNextWeight}lbs, round to nearest increment)` : ""}
+              Hit {repRange.max} reps — go heavier next session{nextTarget ? ` (${nextTarget.weight}lbs${repsText(nextTarget)})` : ""}
             </div>
           )}
         </div>
@@ -222,6 +225,16 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
       {open && (
         <div style={{ padding:"0 14px 14px", borderTop:"1px solid #e8e8e8" }}>
           {ex.notes && <div style={{ fontSize:11, color:"#bbb", margin:"10px 0 10px", fontStyle:"italic" }}>{ex.notes}</div>}
+
+          {todayTarget && (
+            <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"8px 12px", margin:"10px 0" }}>
+              <div style={{ fontSize:13, fontWeight:800, color:"#1d4ed8" }}>↑ Target: {todayTarget.weight}lbs{repsText(todayTarget)}</div>
+              <div style={{ fontSize:11, color:"#3b82f6", marginTop:2 }}>
+                Last time you hit {todayTarget.fromWeight}×{todayTarget.fromReps}, the top of your range
+                {todayTarget.belowRange && ` — expect to start below ${todayTarget.range.min} reps`}
+              </div>
+            </div>
+          )}
 
           {prevIsSub && (
             <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:8, padding:"8px 12px", marginBottom:10 }}>
@@ -348,6 +361,7 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
                   <SetRow key={i} s={s} i={i} isDrop={isDrop} track={track} readOnly={readOnly}
                     effortScale={showEffort ? effortScale : "none"}
                     suggestion={suggestion}
+                    estimate={showEstimates && !suggestion ? estimateSet(sets, prevSets, i, ex) : null}
                     onUpdate={(f,v) => updSet(i,f,v)}
                     onDelete={() => delSet(i)}
                   />
@@ -379,9 +393,12 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
           {toppedRange && (
             <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"10px 12px", marginBottom:10 }}>
               <div style={{ fontSize:11, fontWeight:800, color:"#1d4ed8", marginBottom:3 }}>↑ You hit the top of your rep range ({repRange.max} reps)</div>
-              <div style={{ fontSize:11, color:"#3b82f6", marginBottom:suggestedNextWeight?4:0 }}>Increase the weight next session — you've earned it.</div>
-              {suggestedNextWeight && (
-                <div style={{ fontSize:11, color:"#1d4ed8", fontWeight:700 }}>Rough target: ~{suggestedNextWeight}lbs (+5%) · Round to your nearest available increment</div>
+              <div style={{ fontSize:11, color:"#3b82f6", marginBottom:nextTarget?4:0 }}>Increase the weight next session — you've earned it.</div>
+              {nextTarget && (
+                <div style={{ fontSize:11, color:"#1d4ed8", fontWeight:700 }}>
+                  Next session: {nextTarget.weight}lbs{repsText(nextTarget)} (+{Math.round((nextTarget.weight / nextTarget.fromWeight - 1) * 100)}%) · Round to your nearest available increment
+                  {nextTarget.belowRange && ` · Expect to start below ${nextTarget.range.min} reps`}
+                </div>
               )}
             </div>
           )}

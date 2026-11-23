@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { inp } from "../constants";
 
-export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDelete, effortScale, suggestion }) {
+export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDelete, effortScale, suggestion, estimate }) {
   const rowBg     = isDrop ? "#fffbeb" : "#f8f8f8";
   const rowBorder = isDrop ? "1px solid #fde68a" : "1px solid #e8e8e8";
   const [offset, setOffset] = useState(0);
@@ -35,7 +35,7 @@ export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDele
   ].filter(Boolean).join(" ");
 
   return (
-    <div style={{ marginBottom: suggestion ? 2 : 6 }}>
+    <div style={{ marginBottom: suggestion || estimate ? 2 : 6 }}>
       <div style={{ position:"relative", overflow:"hidden" }}>
         {!readOnly && (
           <div style={{ position:"absolute", right:0, top:0, bottom:0, width:DELETE_W, background:"#ef4444", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -110,6 +110,11 @@ export default function SetRow({ s, i, isDrop, track, readOnly, onUpdate, onDele
         </div>
       </div>
 
+      {estimate && !suggestion && (
+        <div style={{ background:"#eff6ff", borderRadius:"0 0 7px 7px", padding:"5px 10px", fontSize:11, color:"#1d4ed8", fontWeight:600 }}>
+          Est. at {s.weight}lbs: ~{estimate.reps} reps <span style={{ fontWeight:400 }}>(from {estimate.from})</span>
+        </div>
+      )}
       {suggestion && (
         <div style={{ background:suggestion.belowRange?"#fffbeb":"#f0fdf4", borderRadius:"0 0 7px 7px", padding:"5px 10px", fontSize:11, color:suggestion.belowRange?"#92400e":"#15803d", fontWeight:600 }}>
           {suggestion.belowRange

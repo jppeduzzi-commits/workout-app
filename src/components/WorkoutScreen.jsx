@@ -325,6 +325,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
             subSuggestions={getSubSuggestions(ex.exerciseId)}
             onChange={val => handleChange(ex.id, val)}
             sessions={sessions}
+            hideEstimates={editingSession}
             effortScale={effortScale}
             findExerciseCandidates={findExerciseCandidates}
             onSaveExercise={onSaveExercise}
