@@ -223,16 +223,6 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
         <div style={{ padding:"0 14px 14px", borderTop:"1px solid #e8e8e8" }}>
           {ex.notes && <div style={{ fontSize:11, color:"#bbb", margin:"10px 0 10px", fontStyle:"italic" }}>{ex.notes}</div>}
 
-          {toppedRange && (
-            <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"10px 12px", marginBottom:10 }}>
-              <div style={{ fontSize:11, fontWeight:800, color:"#1d4ed8", marginBottom:3 }}>↑ You hit the top of your rep range ({repRange.max} reps)</div>
-              <div style={{ fontSize:11, color:"#3b82f6", marginBottom:suggestedNextWeight?4:0 }}>Increase the weight next session — you've earned it.</div>
-              {suggestedNextWeight && (
-                <div style={{ fontSize:11, color:"#1d4ed8", fontWeight:700 }}>Rough target: ~{suggestedNextWeight}lbs (+5%) · Round to your nearest available increment</div>
-              )}
-            </div>
-          )}
-
           {prevIsSub && (
             <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:8, padding:"8px 12px", marginBottom:10 }}>
               <div style={{ fontSize:11, fontWeight:800, color:"#92400e", marginBottom:2 }}>↻ Last session was a substitution</div>
@@ -381,6 +371,17 @@ export default function ExerciseLogRow({ ex, entry, prevEntry, subPrevEntry, onC
                 <button onClick={addDropSet} style={{ flex:1, padding:8, background:"transparent", border:"1.5px dashed #fde68a", borderRadius:8, color:"#b45309", fontSize:12, fontFamily:"inherit", fontWeight:600, cursor:"pointer" }}>
                   ↓ Add drop set
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* Below the sets: it appears mid-typing and must not push the field down */}
+          {toppedRange && (
+            <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"10px 12px", marginBottom:10 }}>
+              <div style={{ fontSize:11, fontWeight:800, color:"#1d4ed8", marginBottom:3 }}>↑ You hit the top of your rep range ({repRange.max} reps)</div>
+              <div style={{ fontSize:11, color:"#3b82f6", marginBottom:suggestedNextWeight?4:0 }}>Increase the weight next session — you've earned it.</div>
+              {suggestedNextWeight && (
+                <div style={{ fontSize:11, color:"#1d4ed8", fontWeight:700 }}>Rough target: ~{suggestedNextWeight}lbs (+5%) · Round to your nearest available increment</div>
               )}
             </div>
           )}

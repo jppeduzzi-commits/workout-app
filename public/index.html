@@ -15,15 +15,7 @@
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
       body { background: #f5f5f5; }
-      /* Typing focus: enlarge the active field (see src/useTypingFocus.js).
-         !important is needed to beat the components' inline styles. */
-      .typing [data-typing-scroll] input:not([type="checkbox"]):not([type="radio"]):focus,
-      .typing [data-typing-scroll] textarea:focus {
-        font-size: 22px !important; min-width: 76px;
-        border-color: #2563eb !important; background: #fff !important;
-        box-shadow: inset 0 0 0 1px #2563eb;
-      }
-      /* Room to center fields near the end of the list */
+      /* Room to scroll the last fields clear of the keyboard (src/useStableTyping.js) */
       .typing [data-typing-scroll]::after { content: ""; display: block; height: 50vh; }
     </style>
   </head>

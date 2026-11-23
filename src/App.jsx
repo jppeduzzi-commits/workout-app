@@ -1,4 +1,4 @@
-import useTypingFocus from "./useTypingFocus";
+import useStableTyping from "./useStableTyping";
 import { useState, useEffect } from "react";
 import { auth } from "./firebase";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
@@ -26,7 +26,7 @@ const LS_NAME = "stack_user_name";
 const can = n => n.trim().charAt(0).toUpperCase() + n.trim().slice(1).toLowerCase();
 
 export default function App() {
-  useTypingFocus();
+  useStableTyping();
   const [screen, setScreen]               = useState("loading");
   const [userName, setUserName]           = useState(null);
   const [splits, setSplits]               = useState([]);
@@ -454,7 +454,7 @@ export default function App() {
   );
 
   if (screen === "performance") return (
-    <div style={{ height:"var(--app-h, 100dvh)", display:"flex", flexDirection:"column" }}>{font}
+    <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>{font}
       <PerformanceScreen
         userName={userName}
         splitId={activeSplit?.id || null}
@@ -466,7 +466,7 @@ export default function App() {
   );
 
   if (screen === "editor") return (
-    <div style={{ height:"var(--app-h, 100dvh)", display:"flex", flexDirection:"column" }}>{font}
+    <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>{font}
       <EditorScreen
         split={activeSplit}
         onSave={handleSaveSplit}
@@ -481,7 +481,7 @@ export default function App() {
   );
 
   return (
-    <div style={{ height:"var(--app-h, 100dvh)", display:"flex", flexDirection:"column" }}>{font}
+    <div style={{ height:"100dvh", display:"flex", flexDirection:"column" }}>{font}
       {loadingSplits ? (
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100dvh", fontFamily:"Barlow,sans-serif", color:"#bbb" }}>Loading...</div>
       ) : (

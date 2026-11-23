@@ -260,7 +260,7 @@ export default function WorkoutScreen({ userName, splitId, program, days, onBack
   if (analysisEx) return <AnalysisScreen ex={analysisEx} log={catalogById[analysisEx.exerciseId]?.log || []} onBack={() => setAnalysisEx(null)} />;
 
   return (
-    <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", height:"var(--app-h, 100dvh)" }}>
+    <div style={{ fontFamily:"Barlow,sans-serif", display:"flex", flexDirection:"column", height:"100dvh" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", borderBottom:"1px solid #e8e8e8", background:"#fff", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"none", border:"none", color:"#bbb", fontSize:20, cursor:"pointer", padding:0 }}>←</button>
